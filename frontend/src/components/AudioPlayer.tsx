@@ -4,12 +4,17 @@ import { Play, Pause } from '@phosphor-icons/react'
 interface Props {
   src: string
   mimeType?: string
+  audioRef?: { current: HTMLAudioElement | null }
+  onTimeUpdate?: (time: number) => void
+  onPlayingChange?: (playing: boolean) => void
+  onDuration?: (dur: number) => void
 }
 
 const BAR_COUNT = 48
 
-export function AudioPlayer({ src, mimeType }: Props) {
-  const audioRef = useRef<HTMLAudioElement>(null)
+export function AudioPlayer({ src, mimeType, audioRef: externalRef, onTimeUpdate, onPlayingChange, onDuration }: Props) {
+  const internalRef = useRef<HTMLAudioElement>(null)
+  const audioRef = externalRef ?? internalRef
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const animRef = useRef<number>(0)
@@ -21,16 +26,27 @@ export function AudioPlayer({ src, mimeType }: Props) {
   const [current, setCurrent] = useState(0)
   const [duration, setDuration] = useState(0)
   const [ready, setReady] = useState(false)
+  const [rate, setRate] = useState(1)
+
+  const rates = [0.75, 1, 1.25, 1.5, 2, 3]
+
+  const changeRate = (r: number) => {
+    setRate(r)
+    if (audioRef.current) audioRef.current.playbackRate = r
+  }
 
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
-    const onTime = () => setCurrent(audio.currentTime)
-    const onMeta = () => { setDuration(audio.duration); setReady(true) }
-    const onEnd = () => setPlaying(false)
-    const onPlay = () => setPlaying(true)
-    const onPause = () => setPlaying(false)
+    const onTime = () => {
+      setCurrent(audio.currentTime)
+      onTimeUpdate?.(audio.currentTime)
+    }
+    const onMeta = () => { setDuration(audio.duration); setReady(true); onDuration?.(audio.duration) }
+    const onEnd = () => { setPlaying(false); onPlayingChange?.(false) }
+    const onPlay = () => { setPlaying(true); onPlayingChange?.(true) }
+    const onPause = () => { setPlaying(false); onPlayingChange?.(false) }
 
     audio.addEventListener('timeupdate', onTime)
     audio.addEventListener('loadedmetadata', onMeta)
@@ -198,9 +214,24 @@ export function AudioPlayer({ src, mimeType }: Props) {
             )}
           </div>
 
-          <span className="text-xs text-white/50 tabular-nums flex-shrink-0 min-w-[5rem] text-right font-mono">
-            {fmt(current)} / {fmt(duration)}
-          </span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="hidden sm:flex items-center gap-0.5">
+              {rates.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => changeRate(r)}
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                    rate === r ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white/70'
+                  }`}
+                >
+                  {r}x
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-white/50 tabular-nums font-mono">
+              {fmt(current)} / {fmt(duration)}
+            </span>
+          </div>
         </div>
 
         <div className="mt-2 flex items-center gap-3">

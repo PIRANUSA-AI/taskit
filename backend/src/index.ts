@@ -19,6 +19,7 @@ import { uploadRouter } from './routes/upload.js'
 import { shareRouter } from './routes/share.js'
 import { tasksRouter } from './routes/tasks.js'
 import { playgroundRouter } from './routes/playground.js'
+import { searchRouter } from './routes/search.js'
 import { db } from './db/client.js'
 import { jobs } from './db/schema.js'
 import { inArray, sql } from 'drizzle-orm'
@@ -122,6 +123,7 @@ app.route('/upload', uploadRouter)
 app.route('/share', shareRouter)
 app.route('/tasks', tasksRouter)
 app.route('/playground', playgroundRouter)
+app.route('/search', searchRouter)
 
 app.onError((err, c) => {
   console.error('Unhandled error:', err)

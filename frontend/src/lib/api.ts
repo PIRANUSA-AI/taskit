@@ -114,6 +114,7 @@ export interface JobDetail {
   id: string
   filename: string
   title: string | null
+  storageKey?: string | null
   mimeType: string
   sizeBytes: number | null
   durationSec: number | null

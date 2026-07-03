@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Copy, DownloadSimple, MagnifyingGlass, Check } from '@phosphor-icons/react'
 import type { ActionItem, TranscriptPayload } from '../lib/api'
@@ -15,6 +15,7 @@ interface Props {
   readOnly?: boolean
   onActionItemsChange?: (next: ActionItem[]) => void
   onSpeakerRename?: (speaker: string, name: string) => void
+  audioCurrentTime?: number
 }
 
 export function TranscriptViewer({
@@ -27,10 +28,15 @@ export function TranscriptViewer({
   readOnly,
   onActionItemsChange,
   onSpeakerRename,
+  audioCurrentTime,
 }: Props) {
   const [query, setQuery] = useState('')
   const [copied, setCopied] = useState<'all' | 'segment' | null>(null)
   const [showRaw, setShowRaw] = useState(false)
+  const [searchIdx, setSearchIdx] = useState(0)
+
+  const segRefs = useRef<(HTMLDivElement | null)[]>([])
+  const [activeIdx, setActiveIdx] = useState(-1)
 
   const hasRaw = Boolean(transcript.rawSegments && transcript.rawSegments.length > 0)
   const activeSegments = showRaw && hasRaw ? transcript.rawSegments! : transcript.segments
@@ -42,6 +48,24 @@ export function TranscriptViewer({
       (s) => s.text.toLowerCase().includes(q) || s.speaker.toLowerCase().includes(q)
     )
   }, [activeSegments, query])
+
+  useEffect(() => { setSearchIdx(0) }, [query])
+
+  useEffect(() => {
+    if (audioCurrentTime === undefined || audioCurrentTime <= 0 || filtered.length === 0) {
+      setActiveIdx(-1)
+      return
+    }
+    const idx = activeSegments.findIndex((s) => {
+      const t = parseTimestamp(s.start)
+      const tEnd = parseTimestamp(s.end)
+      return audioCurrentTime >= t && audioCurrentTime < (tEnd || t + 10)
+    })
+    setActiveIdx(idx)
+    if (idx >= 0 && segRefs.current[idx]) {
+      segRefs.current[idx]!.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [audioCurrentTime, activeSegments, query])
 
   const copyAll = async () => {
     const text = activeSegments
@@ -139,6 +163,34 @@ export function TranscriptViewer({
               {showRaw ? 'Mentah' : 'Dipoles'}
             </button>
           )}
+          {query.trim() && filtered.length > 0 && (
+            <div className="hidden sm:flex items-center gap-1 text-xs text-ink-muted tabular">
+              <button
+                onClick={() => {
+                  const next = (searchIdx - 1 + filtered.length) % filtered.length
+                  setSearchIdx(next)
+                  segRefs.current[next]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                }}
+                className="grid place-items-center w-7 h-7 rounded hover:bg-slate-100"
+                aria-label="Sebelumnya"
+              >
+                ▲
+              </button>
+              <span className="min-w-[4rem] text-center">{searchIdx + 1} / {filtered.length}</span>
+              <button
+                onClick={() => {
+                  const next = (searchIdx + 1) % filtered.length
+                  setSearchIdx(next)
+                  segRefs.current[next]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                }}
+                className="grid place-items-center w-7 h-7 rounded hover:bg-slate-100"
+                aria-label="Berikutnya"
+              >
+                ▼
+              </button>
+            </div>
+          )}
+
           <div className="hidden sm:flex items-center gap-1">
             <button
               onClick={copyAll}
@@ -175,10 +227,13 @@ export function TranscriptViewer({
           filtered.map((seg, i) => (
             <motion.div
               key={i}
+              ref={(el) => { segRefs.current[i] = el }}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: Math.min(i * 0.02, 0.3) }}
-              className="group rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-colors overflow-hidden"
+              className={`group rounded-2xl border transition-all overflow-hidden ${
+                i === activeIdx ? 'border-brand bg-brand-soft/50 shadow-sm ring-1 ring-brand/20' : 'border-slate-200 bg-white hover:border-slate-300'
+              }`}
             >
               <div className="grid sm:grid-cols-[auto_1fr] gap-3 sm:gap-5 p-4 sm:p-5">
                 <div className="flex sm:flex-col items-center sm:items-start gap-3 sm:gap-2 flex-shrink-0 sm:w-32">

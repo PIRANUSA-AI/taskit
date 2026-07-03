@@ -12,6 +12,7 @@ import {
 import type { ActionItem, ActionItemChange } from '../lib/api'
 import { api } from '../lib/api'
 import { speakerStyle } from '../lib/format'
+import { useToast } from '../components/Toast'
 
 interface Props {
   jobId: string
@@ -40,6 +41,7 @@ export function ActionItemsPanel({
   const [newTaskText, setNewTaskText] = useState('')
   const [renamingOwner, setRenamingOwner] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const { toast } = useToast()
 
   const resolveName = (owner: string) => speakerNames[owner] ?? owner
 
@@ -65,7 +67,7 @@ export function ActionItemsPanel({
       )
       onChange?.(res.actionItems)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan perubahan')
+      toast(err instanceof Error ? err.message : 'Gagal menyimpan perubahan', 'error')
     }
   }
 
@@ -135,7 +137,7 @@ export function ActionItemsPanel({
         name,
       })
       .then((res) => onSpeakerRename?.(owner, name))
-      .catch((err) => alert(err instanceof Error ? err.message : 'Gagal mengganti nama'))
+      .catch((err) => toast(err instanceof Error ? err.message : 'Gagal mengganti nama', 'error'))
   }
 
   return (

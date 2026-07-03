@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { House, ClockCounterClockwise, CheckSquare, UserCircle } from '@phosphor-icons/react'
+import { House, ClockCounterClockwise, CheckSquare, UserCircle, MagnifyingGlass } from '@phosphor-icons/react'
 
 const TABS = [
   { to: '/', icon: House, match: (p: string) => p === '/' },
@@ -35,6 +35,18 @@ export function BottomDock() {
             </Link>
           )
         })}
+        <div className="w-px h-6 bg-slate-200" />
+        <Link
+          to="/search"
+          aria-current={pathname.startsWith('/search') ? 'page' : undefined}
+          className="grid place-items-center w-11 h-11 rounded-full transition-colors hover:bg-paper"
+        >
+          <MagnifyingGlass
+            size={20}
+            weight={pathname.startsWith('/search') ? 'fill' : 'regular'}
+            className={pathname.startsWith('/search') ? 'text-brand' : 'text-slate-400'}
+          />
+        </Link>
       </div>
     </nav>
   )

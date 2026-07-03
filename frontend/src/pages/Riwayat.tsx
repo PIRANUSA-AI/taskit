@@ -61,7 +61,27 @@ export default function Riwayat() {
     )
   }
 
-  if (jobs === null) return <LoadingScreen />
+  if (jobs === null) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 md:px-8 pt-8 md:pt-12 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-32">
+        <header className="mb-6 md:mb-8">
+          <div className="skeleton h-3 w-20 rounded mb-2" />
+          <div className="skeleton h-9 w-64 rounded-lg mb-2" />
+          <div className="skeleton h-4 w-32 rounded" />
+        </header>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="card p-5 mb-3">
+            <div className="skeleton h-5 w-3/4 rounded-lg mb-3" />
+            <div className="skeleton h-3 w-1/2 rounded mb-2" />
+            <div className="flex gap-2 mt-3">
+              <div className="skeleton h-5 w-16 rounded-full" />
+              <div className="skeleton h-5 w-20 rounded-full" />
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 md:px-8 pt-8 md:pt-12 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-32">

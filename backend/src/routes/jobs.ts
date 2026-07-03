@@ -218,6 +218,41 @@ jobsRouter.get('/:id/audio', requireAuth, async (c) => {
   return c.json({ url, mimeType: job.mimeType ?? 'audio/mpeg' })
 })
 
+jobsRouter.post('/:id/retry', requireAuth, async (c) => {
+  const user = c.get('user')
+  const id = c.req.param('id')
+
+  const [job] = await db
+    .select({ userId: jobs.userId, status: jobs.status, storageKey: jobs.storageKey })
+    .from(jobs)
+    .where(eq(jobs.id, id))
+    .limit(1)
+
+  if (!job) return c.json({ error: 'Job tidak ditemukan' }, 404)
+  if (job.userId !== user.id && !user.isAdmin) return c.json({ error: 'Forbidden' }, 403)
+  if (job.status !== 'failed' && job.status !== 'cancelled') {
+    return c.json({ error: 'Hanya job gagal/dibatalkan yang bisa di-retry' }, 400)
+  }
+  if (!job.storageKey) return c.json({ error: 'Audio asli tidak tersedia untuk di-retry' }, 400)
+
+  await db.delete(actionItems).where(eq(actionItems.jobId, id))
+
+  await db
+    .update(jobs)
+    .set({
+      status: 'queued',
+      errorMessage: null,
+      transcript: null,
+      title: null,
+      durationSec: null,
+      completedAt: null,
+    })
+    .where(eq(jobs.id, id))
+
+  await cacheJobStatus(id, { status: 'queued', progress: 0 })
+  return c.json({ ok: true })
+})
+
 jobsRouter.post('/:id/share', async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
@@ -426,6 +461,7 @@ function toJobDetail(
     completedAt: job.completedAt,
     cancelledAt: job.cancelledAt,
     shareToken: includeShareToken ? job.shareToken : undefined,
+    storageKey: job.storageKey,
   }
 }
 

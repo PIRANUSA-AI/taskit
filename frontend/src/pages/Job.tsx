@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Check, Play, Pause, ShareNetwork, Trash, WarningCircle, XCircle } from '@phosphor-icons/react'
+import { ArrowLeft, ArrowClockwise, Check, ShareNetwork, Trash, WarningCircle, XCircle } from '@phosphor-icons/react'
 import { ApiError, api, type ActionItem, type JobDetail, type ShareJobResponse } from '../lib/api'
 import { TranscriptViewer } from '../components/TranscriptViewer'
 import { ActionItemsPanel } from '../components/ActionItemsPanel'
 import { AudioPlayer } from '../components/AudioPlayer'
+import { MiniPlayer } from '../components/MiniPlayer'
+import { ConfirmModal } from '../components/ConfirmModal'
+import { useToast } from '../components/Toast'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { TitleScrambler } from '../components/TitleScrambler'
 import { formatBytes, formatDuration, formatRelativeTime } from '../lib/format'
@@ -19,8 +22,16 @@ export default function Job() {
   const [deleting, setDeleting] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [shared, setShared] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [audioLoading, setAudioLoading] = useState(false)
+  const [audioTime, setAudioTime] = useState(0)
+  const [audioPlaying, setAudioPlaying] = useState(false)
+  const [audioDuration, setAudioDuration] = useState(0)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const { toast } = useToast()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [delForce, setDelForce] = useState(false)
 
   useEffect(() => {
     if (!id || initial?.status !== 'completed') return
@@ -43,6 +54,29 @@ export default function Job() {
       })
   }, [id])
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      const audio = audioRef.current
+      if (!audio) return
+
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (audio.paused) audio.play()
+        else audio.pause()
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault()
+        audio.currentTime = Math.max(0, audio.currentTime - 5)
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault()
+        audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
   const isActive =
     initial?.status === 'uploading' ||
     initial?.status === 'queued' ||
@@ -61,20 +95,39 @@ export default function Job() {
     )
   }
 
+  const handleRetry = async () => {
+    if (!id) return
+    setRetrying(true)
+    try {
+      await api.post(`/jobs/${id}/retry`)
+      setInitial((cur) => cur ? {
+        ...cur,
+        status: 'queued',
+        error: null,
+        transcript: null,
+        actionItems: [],
+      } : cur)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Gagal mengulang transkrip', 'error')
+    } finally {
+      setRetrying(false)
+    }
+  }
+
   const handleDelete = async (force?: boolean) => {
     if (!id || !job) return
     const isRunning = job.status === 'uploading' || job.status === 'queued' || job.status === 'transcribing' || job.status === 'pending'
     const msg = isRunning
       ? 'Batalkan proses transkrip ini? Job akan dihapus dari riwayat.'
       : 'Hapus transkrip ini dari riwayat? Aksi tidak bisa dibatalkan.'
-    if (!force && !confirm(msg)) return
+    if (!force) { setConfirmDelete(true); setDelForce(false); return }
 
     setDeleting(true)
     try {
       await api.delete(`/jobs/${id}`)
       navigate('/', { replace: true })
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal menghapus')
+      toast(err instanceof Error ? err.message : 'Gagal menghapus', 'error')
       setDeleting(false)
     }
   }
@@ -104,7 +157,7 @@ export default function Job() {
       setTimeout(() => setShared(false), 1800)
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
-        alert(err instanceof Error ? err.message : 'Gagal membuat link bagikan')
+        toast(err instanceof Error ? err.message : 'Gagal membuat link bagikan', 'error')
       }
     } finally {
       setSharing(false)
@@ -131,7 +184,7 @@ export default function Job() {
   const isRunning = job.status === 'uploading' || job.status === 'queued' || job.status === 'transcribing' || job.status === 'pending'
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 lg:px-8 pt-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-12">
+    <div className={`mx-auto w-full max-w-7xl px-4 lg:px-8 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-12 ${audioPlaying ? 'pt-16' : 'pt-6'}`}>
       <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-navy mb-4">
         <ArrowLeft size={14} />
         Semua transkrip
@@ -193,7 +246,7 @@ export default function Job() {
         {job.status === 'completed' && job.transcript ? (
           <div className="lg:grid lg:grid-cols-[1fr_380px] xl:grid-cols-[1fr_420px] lg:gap-8">
             <div className="min-w-0">
-              {audioUrl && <AudioPlayer src={audioUrl} mimeType={job.mimeType ?? undefined} />}
+              {audioUrl && <AudioPlayer src={audioUrl} mimeType={job.mimeType ?? undefined} audioRef={audioRef} onTimeUpdate={setAudioTime} onPlayingChange={setAudioPlaying} onDuration={setAudioDuration} />}
               <TranscriptViewer
                 transcript={job.transcript}
                 filename={job.filename}
@@ -201,6 +254,7 @@ export default function Job() {
                 speakerNames={job.speakerNames}
                 onActionItemsChange={updateActionItems}
                 onSpeakerRename={renameSpeaker}
+                audioCurrentTime={audioTime}
               />
             </div>
             <div className="mt-6 lg:mt-0 lg:block space-y-4">
@@ -226,9 +280,15 @@ export default function Job() {
                 ? 'Job ini dibatalkan dan kredit estimasi dikembalikan.'
                 : job.error || 'Terjadi kesalahan tak dikenal.'}
             </p>
-            <button onClick={() => handleDelete()} disabled={deleting} className="btn-ghost mt-6">
-              Hapus dari riwayat
-            </button>
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <button onClick={handleRetry} disabled={retrying} className="btn-primary !text-xs">
+                <ArrowClockwise size={14} weight="bold" />
+                {retrying ? 'Memproses...' : 'Coba lagi'}
+              </button>
+              <button onClick={() => handleDelete()} disabled={deleting} className="btn-ghost !text-xs">
+                Hapus dari riwayat
+              </button>
+            </div>
           </div>
         ) : job.status === 'transcribing' && job.transcript?.segments?.length ? (
           <div>
@@ -287,6 +347,30 @@ export default function Job() {
           </div>
         )}
       </div>
+
+      {audioPlaying && (
+        <MiniPlayer
+          audioRef={audioRef}
+          playing={audioPlaying}
+          currentTime={audioTime}
+          duration={audioDuration}
+          filename={job.filename}
+          onClose={() => { audioRef.current?.pause() }}
+        />
+      )}
+
+      <ConfirmModal
+        open={confirmDelete}
+        title="Hapus transkrip"
+        message={job && (job.status === 'uploading' || job.status === 'queued' || job.status === 'transcribing' || job.status === 'pending')
+          ? 'Batalkan proses transkrip ini? Job akan dihapus dari riwayat.'
+          : 'Hapus transkrip ini dari riwayat? Aksi tidak bisa dibatalkan.'
+        }
+        danger
+        confirmLabel="Hapus"
+        onConfirm={() => { setConfirmDelete(false); handleDelete(true) }}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   )
 }

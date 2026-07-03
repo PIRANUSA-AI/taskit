@@ -15,12 +15,14 @@ import {
 } from '@phosphor-icons/react'
 import { ApiError, api, type UserStats } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
+import { useToast } from '../components/Toast'
 import { formatDuration, formatRelativeTime } from '../lib/format'
 
 const USD_TO_IDR = 16_000
 
 export default function Profil() {
   const { user, refresh } = useAuth()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [stats, setStats] = useState<UserStats | null>(null)
   const [taskToken, setTaskToken] = useState<string | null>(null)
@@ -38,7 +40,7 @@ export default function Profil() {
       const res = await api.post<{ taskShareToken: string }>('/auth/me/task-token')
       setTaskToken(res.taskShareToken)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal membuat tautan')
+      toast(err instanceof Error ? err.message : 'Gagal membuat tautan', 'error')
     }
   }
 
@@ -56,7 +58,7 @@ export default function Profil() {
       await refresh()
       setEditingName(false)
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Gagal menyimpan')
+      toast(err instanceof ApiError ? err.message : 'Gagal menyimpan', 'error')
     } finally {
       setSavingName(false)
     }
@@ -130,7 +132,7 @@ export default function Profil() {
       </motion.div>
 
       {/* Stats grid */}
-      {stats && (
+      {stats ? (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -148,6 +150,16 @@ export default function Profil() {
             small
           />
         </motion.div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="card p-4">
+              <div className="skeleton h-9 w-9 rounded-xl mb-3" />
+              <div className="skeleton h-6 w-20 rounded mb-1" />
+              <div className="skeleton h-3 w-16 rounded" />
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Personal task link */}

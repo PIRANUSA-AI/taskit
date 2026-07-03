@@ -252,7 +252,7 @@ async function polishTranscript(segments: TranscriptSegment[]): Promise<{
 
 const CHUNK_CHAR_TARGET = 22000 // soft per-chunk size (kept well under GLM context limit)
 const CARRY_MAX_CHARS = 1800 // rolling context bound
-const CONFIDENCE_MIN = 0.3 // below this = discarded; borderline kept & surfaced via UI hint
+const CONFIDENCE_MIN = 0.15 // below this = discarded; borderline kept & surfaced via UI hint
 
 const actionItemSchema = z.object({
   owner: z.string().min(1).max(80),
@@ -298,20 +298,21 @@ const SYSTEM_BASE = `Kamu asisten analisis rapat Bahasa Indonesia yang sangat di
 
 const ACTION_RULES = `
 PRINSIP UTAMA — EKSTRAKSI MENYELURUH (SANGAT PENTING):
-- Keluarkan SEMUA tugas yang ditugaskan dalam transkrip. TIDAK ADA batas jumlah. Sebuah rapat 3 jam sering punya 10, 20, 30+ action items — keluarkan semuanya.
-- Setiap ORANG bisa memiliki BANYK tugas (1, 3, 5, 10, atau lebih). Jangan dibatasi. Misal jika Dina diminta: update laporan, cek invoice, follow up klien X, koordinasi tim marketing — itu 4 tugas terpisah untuk Dina, keluarkan SEMUANYA sebagai 4 item berbeda.
-- JANGAN PERNAH menyederhanakan/menggabungkan tugas berbeda menjadi satu. Misal "kirim laporan sales" dan "update CRM" = DUA item, bukan satu "kirim laporan & update CRM".
-- Lihat transkrip baris demi baris. Setiap kalimat penugasan = calon item. Kalau ragu apakah penugasan, tetap keluarkan dengan confidence rendah (0.3-0.5) agar bisa ditinjau manual — JANGAN dibuang begitu saja kecuali jelas-jelas bukan tugas.
+- Keluarkan SEMUA tugas yang ditugaskan dalam transkrip. TIDAK ADA batas jumlah. Sebuah rapat 1 jam sering punya 15-25+ action items — intuisi kamu HARUS over-estimate.
+- Setiap ORANG bisa memiliki BANYAK tugas. Jangan dibatasi. Misal jika Dina diminta: update laporan, cek invoice, follow up klien X, koordinasi tim marketing — itu 4 tugas terpisah untuk Dina, keluarkan SEMUANYA sebagai 4 item berbeda.
+- JANGAN PERNAH menyederhanakan/menggabungkan tugas berbeda menjadi satu. Misal "kirim laporan sales" dan "update CRM" = DUA item.
+- Lihat transkrip baris demi baris. SETIAP kalimat yang mengandung unsur penugasan, permintaan, komitmen, atau rencana = calon item. Kalau ragu, TETAP KELUARKAN dengan confidence rendah (0.15-0.4) — lebih baik terlalu banyak daripada kelewat.
 
-ATURAN PENUGASAN (hindari false positive total):
-- HANYA masukkan jika ada PENUGASAN (imperatif langsung: "tolong kirim", "mohon update", "bantu cek", "kamu yang handle", "nanti kita ... jam X", "jangan lupa ...", "pastikan ...", ATAU permintaan tugas spesifik dengan assignee yang dapat diidentifikasi, ATAU komitmen diri sendiri: "aku akan ...", "nanti saya ...").
-- JANGAN masukkan: pertanyaan retoris, opini murni, kalimat bersyarat hipotetis ("kayaknya harusnya...", "seharusnya sih..."), pernyataan fakta lampau murni tanpa follow-up, atau ide umum tanpa owner.
-- owner = label speaker PERSIS ("Speaker 1", dst) jika dia yang menugaskan diri sendiri/berkewajiban, ATAU nama orang asli yang disebut sebagai penerima tugas (mis. "Salopu, tolong update sales" -> owner = "Salopu"). Konsistenkan ejaan nama. Jika assignee benar-benar tidak teridentifikasi, tetap keluarkan dengan owner = "Unassigned" (lebih baik daripada dibuang).
-- task = deskripsi spesifik dalam Bahasa Indonesia, kalimat aktif mulai dengan kata kerja. Pertahankan detail objek/tujuan dari ucapan asli — jangan digeneralisasi. (mis. "Kirim tim packing ke Sumatra" bukan "Kirim tim".)
-- confidence = 0.0-1.0: >=0.85 penugasan sangat eksplisit (imperatif + assignee jelas); 0.6-0.85 indikasi kuat; 0.4-0.6 agak implisit tapi masih masuk akal; 0.3-0.4 samar (tmasukkan agar bisa ditinjau); <0.3 JANGAN sertakan.
-- due = tanggal/jam HANYA jika disebut eksplisit di ucapan (mis. "besok", "Jumat", "jam 3 sore", "end of week"). Jika tidak ada, null.
+ATURAN PENUGASAN (lebih longgar — ambil SEMUA yang mendekati tugas):
+- TUGAS: imperatif langsung ("tolong kirim", "mohon update", "bantu cek", "kamu yang handle"), komitmen ("aku akan...", "nanti saya...", "saya usahakan"), rencana ("nanti kita bahas lanjutan", "minggu depan kita ..."), jadwal ("rapat lanjutan hari Jumat"), follow-up ("ditindaklanjuti", "di-check", "di-monitor"), delegasi ("minta tolong", "bisa minta bantuannya?"), pengingat ("jangan lupa", "pastikan").
+- JUGA ambil: kalimat yang menyiratkan tindakan ("...perlu diselesaikan", "...harus segera", "masalahnya perlu diurus", "kita perlu ...", "saya akan kirimkan", "tolong dibantu", "nanti dikoordinasikan").
+- JANGAN: pertanyaan retoris, opini murni tanpa tindak lanjut, basa-basi.
+- owner = nama orang asli yang disebut ATAU "Speaker N" jika speaker menugaskan diri sendiri. Jika tidak jelas, "Unassigned".
+- task = deskripsi spesifik Bahasa Indonesia, kalimat aktif. Pertahankan detail.
+- confidence: >=0.8 sangat eksplisit; 0.5-0.8 indikasi kuat; 0.15-0.5 samar tapi tetap keluar.
+- due = hanya jika disebut eksplisit.
 
-Ingat: LEBIH BAIK keluarkan terlalu banyak (yang bisa dihapus user di UI) daripada kelewat tugas penting.`.trim()
+INGAT: LEBIH BAIK 20 tugas dengan 5 false positive daripada 5 tasks kelewat 15. Kuantitas diutamakan.`.trim()
 
 function buildLines(segments: TranscriptSegment[]): string[] {
   return segments.map((s) => `${s.speaker}: ${s.text}`)

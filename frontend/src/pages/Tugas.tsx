@@ -49,7 +49,27 @@ export default function Tugas() {
     )
   }
 
-  if (!data) return <LoadingScreen />
+  if (!data) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 md:px-8 pt-8 md:pt-12 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-32">
+        <header className="mb-6 md:mb-8">
+          <div className="skeleton h-3 w-20 rounded mb-2" />
+          <div className="skeleton h-9 w-48 rounded-lg mb-2" />
+          <div className="skeleton h-4 w-36 rounded" />
+        </header>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card p-5 mb-3">
+            <div className="skeleton h-5 w-1/2 rounded-lg mb-4" />
+            <div className="space-y-3">
+              <div className="skeleton h-4 w-full rounded" />
+              <div className="skeleton h-4 w-3/4 rounded" />
+              <div className="skeleton h-4 w-2/3 rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   const visibleGroups = data.groups
     .map((g) => ({ ...g, items: hideDone ? g.items.filter((i) => !i.done) : g.items }))

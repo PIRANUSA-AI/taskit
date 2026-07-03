@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth'
 import { TopChrome } from './components/TopChrome'
 import { BottomDock } from './components/BottomDock'
 import { InstallBanner } from './components/InstallBanner'
+import { ToastProvider } from './components/Toast'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { LoadingScreen } from './components/LoadingScreen'
 import Welcome from './pages/Welcome'
@@ -17,6 +18,7 @@ import SharedJob from './pages/SharedJob'
 import MyTasks from './pages/MyTasks'
 import Admin from './pages/Admin'
 import Playground from './pages/Playground'
+import SearchPage from './pages/SearchPage'
 import NotFound from './pages/NotFound'
 
 function RootPage() {
@@ -105,6 +107,14 @@ function AnimatedRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/search"
+            element={
+              <ProtectedRoute>
+                <SearchPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </motion.div>
@@ -115,8 +125,10 @@ function AnimatedRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <InstallBanner />
-      <AppShell />
+      <ToastProvider>
+        <InstallBanner />
+        <AppShell />
+      </ToastProvider>
     </AuthProvider>
   )
 }

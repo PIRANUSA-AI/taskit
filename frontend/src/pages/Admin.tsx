@@ -24,6 +24,7 @@ import { formatRelativeTime, formatDuration } from '../lib/format'
 import { useAuth } from '../hooks/useAuth'
 import { TopupModal } from '../components/TopupModal'
 import { LineChart, BarChart, DonutProgress } from '../components/charts'
+import { useToast } from '../components/Toast'
 
 interface Overview {
   users: number
@@ -55,6 +56,7 @@ interface Failure {
 
 export default function Admin() {
   const { user: self } = useAuth()
+  const { toast } = useToast()
   const [users, setUsers] = useState<ManagedUser[] | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
   const [trend, setTrend] = useState<TrendPoint[] | null>(null)
@@ -126,7 +128,7 @@ export default function Admin() {
 
   const handleDelete = async (u: ManagedUser) => {
     if (u.id === self?.id) {
-      alert('Tidak bisa hapus akun sendiri')
+      toast('Tidak bisa hapus akun sendiri', 'error')
       return
     }
     if (!confirm(`Hapus user "${u.username}"? Semua transkripnya juga akan terhapus.`)) return
@@ -135,21 +137,21 @@ export default function Admin() {
       await loadAll()
       flashSuccess(`User "${u.username}" dihapus`)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal menghapus')
+      toast(err instanceof Error ? err.message : 'Gagal menghapus', 'error')
     }
   }
 
   const handleResetPassword = async (u: ManagedUser) => {
     const np = prompt(`Password baru untuk "${u.username}":`)
     if (!np || np.length < 8) {
-      if (np !== null) alert('Password minimal 8 karakter')
+      if (np !== null) toast('Password minimal 8 karakter', 'error')
       return
     }
     try {
       await api.patch(`/users/${u.id}/password`, { newPassword: np })
       flashSuccess(`Password "${u.username}" direset`)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal reset password')
+      toast(err instanceof Error ? err.message : 'Gagal reset password', 'error')
     }
   }
 
@@ -166,7 +168,7 @@ export default function Admin() {
       }
       flashSuccess(`Link tugas "${u.username}" disalin`)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal membuat link tugas')
+      toast(err instanceof Error ? err.message : 'Gagal membuat link tugas', 'error')
     }
   }
 

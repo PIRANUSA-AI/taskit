@@ -12,6 +12,7 @@ import {
 import { api, type JobSummary } from '../lib/api'
 import { formatBytes, formatDuration, formatRelativeTime } from '../lib/format'
 import { TitleScrambler } from './TitleScrambler'
+import { useToast } from '../components/Toast'
 
 interface Props {
   refreshKey?: number
@@ -23,6 +24,7 @@ export function HistoryList({ refreshKey, limit, emptyAction = true }: Props) {
   const [jobs, setJobs] = useState<JobSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const { toast } = useToast()
 
   const load = async () => {
     try {
@@ -50,7 +52,7 @@ export function HistoryList({ refreshKey, limit, emptyAction = true }: Props) {
       await api.delete(`/jobs/${job.id}`)
       setJobs((prev) => (prev ? prev.filter((j) => j.id !== job.id) : prev))
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal menghapus')
+      toast(err instanceof Error ? err.message : 'Gagal menghapus', 'error')
     } finally {
       setDeletingId(null)
     }

@@ -48,7 +48,8 @@ export interface SessionUser {
   id: string
   username: string
   isAdmin: boolean
-  creditSeconds: number
+  creditSeconds?: number
+  displayName?: string | null
 }
 
 export interface UserStats {

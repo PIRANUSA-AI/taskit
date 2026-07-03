@@ -9,11 +9,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icon-192.svg', 'icon-512.svg'],
       manifest: {
-        name: 'ALTO',
-        short_name: 'ALTO',
-        description: 'Transkrip meeting dengan label pembicara',
-        theme_color: '#0a0a0b',
-        background_color: '#ffffff',
+        name: 'PIRANUSA',
+        short_name: 'PIRANUSA',
+        description: 'Sumber kebenaran rapat tim PIRANUSA',
+        theme_color: '#1E1B4B',
+        background_color: '#F8FAFC',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
@@ -27,7 +27,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/audio-to-text-api\.fly\.dev\//,
+            urlPattern: /^https:\/\/alto\.fly\.dev\//,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',

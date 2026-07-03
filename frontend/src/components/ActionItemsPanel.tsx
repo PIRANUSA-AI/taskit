@@ -143,14 +143,14 @@ export function ActionItemsPanel({
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
           <h3 className="eyebrow">Action Items</h3>
-          <span className="text-[11px] text-zinc-400 tabular-nums">
+          <span className="text-[11px] text-slate-400 tabular">
             {actionItems.length} tugas · {groups.length} orang
           </span>
         </div>
         {!readOnly && (
           <button
             onClick={copyAll}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-600 hover:text-ink px-2.5 py-1.5 rounded-lg hover:bg-zinc-100"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-navy px-2.5 py-1.5 rounded-lg hover:bg-slate-100"
             title="Salin semua sebagai checklist"
           >
             {copiedAll ? <Check size={14} weight="bold" /> : <Copy size={14} />}
@@ -184,14 +184,14 @@ export function ActionItemsPanel({
                         if (e.key === 'Enter') submitRename(owner)
                         if (e.key === 'Escape') setRenamingOwner(null)
                       }}
-                      className="text-sm font-semibold bg-white border border-zinc-200 rounded-md px-2 py-0.5 min-w-0 focus:outline-none focus:ring-2 focus:ring-offset-0"
+                      className="text-sm font-semibold bg-white border border-slate-200 rounded-md px-2 py-0.5 min-w-0 focus:outline-none focus:ring-2 focus:ring-offset-0"
                     />
                   ) : (
                     <button
                       onClick={() => !readOnly && onSpeakerRename && (
                         setRenamingOwner(owner), setRenameValue(resolveName(owner))
                       )}
-                      className="group inline-flex items-center gap-1.5 text-sm font-semibold text-ink min-w-0"
+                      className="group inline-flex items-center gap-1.5 text-sm font-semibold text-navy min-w-0"
                       title={readOnly ? undefined : 'Klik untuk ganti nama'}
                     >
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium ${style.chip}`}>
@@ -203,7 +203,7 @@ export function ActionItemsPanel({
                       {!readOnly && (
                         <PencilSimple
                           size={12}
-                          className="text-zinc-300 group-hover:text-zinc-500"
+                          className="text-slate-300 group-hover:text-ink-muted"
                         />
                       )}
                     </button>
@@ -211,15 +211,15 @@ export function ActionItemsPanel({
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span
-                    className={`inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums px-2 py-0.5 rounded-full ${style.text} bg-white/70`}
+                    className={`inline-flex items-center gap-1 text-[11px] font-semibold tabular px-2 py-0.5 rounded-full ${style.text} bg-white/70`}
                     title={`${items.length} tugas untuk orang ini`}
                   >
                     {items.length} tugas
-                    {done > 0 && <span className="text-zinc-400 font-normal">· {done} selesai</span>}
+                    {done > 0 && <span className="text-slate-400 font-normal">· {done} selesai</span>}
                   </span>
                   <button
                     onClick={() => copyOwner(owner, items)}
-                    className="grid place-items-center w-7 h-7 rounded-lg text-zinc-400 hover:text-ink hover:bg-white/70"
+                    className="grid place-items-center w-7 h-7 rounded-lg text-slate-400 hover:text-navy hover:bg-white/70"
                     title="Salin checklist orang ini"
                   >
                     {copiedOwner === owner ? <Check size={13} weight="bold" /> : <Copy size={13} />}
@@ -247,7 +247,7 @@ export function ActionItemsPanel({
                           className={`mt-0.5 w-5 h-5 rounded-md border-2 flex-shrink-0 grid place-items-center transition-colors ${
                             item.done
                               ? `${style.dot} border-transparent`
-                              : 'border-zinc-300 bg-white hover:border-zinc-400'
+                              : 'border-slate-300 bg-white hover:border-brand'
                           } ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
                         >
                           {item.done && <Check size={12} weight="bold" className="text-white" />}
@@ -264,19 +264,19 @@ export function ActionItemsPanel({
                                 if (e.key === 'Enter') saveEdit(item)
                                 if (e.key === 'Escape') setEditingId(null)
                               }}
-                              className="w-full text-[14px] bg-white border border-zinc-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2"
+                              className="w-full text-[14px] bg-white border border-slate-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2"
                             />
                           ) : (
                             <div className="flex items-start gap-1.5 flex-wrap">
                               <span
-                                className={`text-[14px] leading-relaxed text-ink ${
-                                  item.done ? 'line-through text-zinc-400' : ''
+                                className={`text-[14px] leading-relaxed text-navy ${
+                                  item.done ? 'line-through text-slate-400' : ''
                                 }`}
                               >
                                 {item.task}
                               </span>
                               {item.due && (
-                                <span className="inline-flex items-center text-[11px] text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded">
+                                <span className="inline-flex items-center text-[11px] text-ink-muted bg-slate-100 px-1.5 py-0.5 rounded">
                                   {item.due}
                                 </span>
                               )}
@@ -297,14 +297,14 @@ export function ActionItemsPanel({
                                 setEditingId(item.id)
                                 setDraftText(item.task)
                               }}
-                              className="grid place-items-center w-7 h-7 rounded-lg text-zinc-400 hover:text-ink hover:bg-zinc-100"
+                              className="grid place-items-center w-7 h-7 rounded-lg text-slate-400 hover:text-navy hover:bg-slate-100"
                               title="Edit"
                             >
                               <PencilSimple size={13} />
                             </button>
                             <button
                               onClick={() => remove(item)}
-                              className="grid place-items-center w-7 h-7 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50"
+                              className="grid place-items-center w-7 h-7 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
                               title="Hapus"
                             >
                               <Trash size={13} />
@@ -318,7 +318,7 @@ export function ActionItemsPanel({
 
                 {addingForOwner === owner && (
                   <li className="flex items-center gap-2.5 px-2 py-2">
-                    <span className={`mt-0.5 w-5 h-5 rounded-md border-2 border-zinc-300 bg-white flex-shrink-0`} />
+                    <span className={`mt-0.5 w-5 h-5 rounded-md border-2 border-slate-300 bg-white flex-shrink-0`} />
                     <input
                       autoFocus
                       value={newTaskText}
@@ -329,7 +329,7 @@ export function ActionItemsPanel({
                         if (e.key === 'Escape') setAddingForOwner(null)
                       }}
                       placeholder="Tulis tugas baru…"
-                      className="flex-1 text-[14px] bg-white border border-zinc-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2"
+                      className="flex-1 text-[14px] bg-white border border-slate-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2"
                     />
                   </li>
                 )}
@@ -341,7 +341,7 @@ export function ActionItemsPanel({
                     setAddingForOwner(owner)
                     setNewTaskText('')
                   }}
-                  className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-ink px-4 py-2 w-full text-left"
+                  className="flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-navy px-4 py-2 w-full text-left"
                 >
                   <Plus size={12} weight="bold" />
                   Tambah tugas
@@ -353,7 +353,7 @@ export function ActionItemsPanel({
       </div>
 
       {actionItems.some((i) => i.confidence < CONFIDENCE_THRESHOLD) && (
-        <p className="mt-4 text-[11px] text-zinc-400 flex items-center gap-1.5">
+        <p className="mt-4 text-[11px] text-slate-400 flex items-center gap-1.5">
           <X size={11} />
           Item berlabel "Perlu ditinjau" diekstrak AI dengan keyakinan rendah — verifikasi sebelum diambil tindakan.
         </p>

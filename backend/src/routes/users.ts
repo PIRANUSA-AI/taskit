@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { eq, and, sql, count, sum, desc } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { db } from '../db/client.js'
-import { users, sessions } from '../db/schema.js'
+import { users, sessions, jobs, actionItems } from '../db/schema.js'
 import { createUser, findUserByUsername, hashPassword } from '../services/auth.js'
 import { requireAdmin, type AppEnv } from '../middleware/auth.js'
 
@@ -27,6 +27,114 @@ const creditsSchema = z.object({
 export const usersRouter = new Hono<AppEnv>()
 
 usersRouter.use('*', requireAdmin)
+
+usersRouter.get('/stats/overview', async (c) => {
+  const [userAgg] = await db
+    .select({
+      total: count(users.id),
+      admins: sum(sql`CASE WHEN ${users.isAdmin} THEN 1 ELSE 0 END`),
+    })
+    .from(users)
+
+  const [jobAgg] = await db
+    .select({
+      total: count(jobs.id),
+      completed: sum(sql`CASE WHEN ${jobs.status} = 'completed' THEN 1 ELSE 0 END`),
+      failed: sum(sql`CASE WHEN ${jobs.status} = 'failed' THEN 1 ELSE 0 END`),
+      totalDuration: sum(jobs.durationSec),
+    })
+    .from(jobs)
+
+  const [itemAgg] = await db
+    .select({
+      total: count(actionItems.id),
+      done: sum(sql`CASE WHEN ${actionItems.done} THEN 1 ELSE 0 END`),
+    })
+    .from(actionItems)
+
+  const totalJobs = Number(jobAgg?.total ?? 0)
+  const completedJobs = Number(jobAgg?.completed ?? 0)
+  const failedJobs = Number(jobAgg?.failed ?? 0)
+  const totalItems = Number(itemAgg?.total ?? 0)
+  const doneItems = Number(itemAgg?.done ?? 0)
+
+  return c.json({
+    users: Number(userAgg?.total ?? 0),
+    admins: Number(userAgg?.admins ?? 0),
+    jobs: totalJobs,
+    completedJobs,
+    failedJobs,
+    completionRate: totalJobs > 0 ? completedJobs / totalJobs : 0,
+    totalDurationSec: Number(jobAgg?.totalDuration ?? 0),
+    actionItems: totalItems,
+    actionItemsDone: doneItems,
+    actionItemsCompletionRate: totalItems > 0 ? doneItems / totalItems : 0,
+  })
+})
+
+usersRouter.get('/stats/jobs-trend', async (c) => {
+  const days = Math.min(Number(c.req.query('days') ?? 30), 365)
+  const rows = (await db.execute(sql`
+    SELECT
+      d::date AS date,
+      COUNT(j.id)::int AS count,
+      COALESCE(SUM(j.duration_sec), 0)::int AS duration
+    FROM generate_series(
+      date_trunc('day', NOW() - (${days} - 1) * INTERVAL '1 day'),
+      date_trunc('day', NOW()),
+      INTERVAL '1 day'
+    ) AS d
+    LEFT JOIN jobs j ON date_trunc('day', j.created_at) = d AND j.status <> 'cancelled'
+    GROUP BY d
+    ORDER BY d ASC
+  `)) as Array<{ date: string; count: number; duration: number }>
+  return c.json({ points: rows.map((r) => ({ date: r.date, count: r.count, duration: r.duration })) })
+})
+
+usersRouter.get('/stats/top-users', async (c) => {
+  const limit = Math.min(Number(c.req.query('limit') ?? 8), 50)
+  const rows = await db
+    .select({
+      userId: jobs.userId,
+      jobsCompleted: count(jobs.id),
+      totalDuration: sum(jobs.durationSec),
+    })
+    .from(jobs)
+    .where(eq(jobs.status, 'completed'))
+    .groupBy(jobs.userId)
+    .orderBy(desc(count(jobs.id)))
+    .limit(limit)
+
+  const ids = rows.map((r) => r.userId)
+  if (ids.length === 0) return c.json({ users: [] })
+
+  const userRows = await db
+    .select({ id: users.id, username: users.username, displayName: users.displayName })
+    .from(users)
+    .where(sql`${users.id} = ANY(${sql.raw(`ARRAY[${ids.map((id) => `'${id}'`).join(',')}]::text[]`)})`)
+
+  const byId = new Map(userRows.map((u) => [u.id, u]))
+  return c.json({
+    users: rows.map((r) => ({
+      ...(byId.get(r.userId) ?? { username: '?', displayName: null }),
+      jobsCompleted: Number(r.jobsCompleted),
+      totalDuration: Number(r.totalDuration ?? 0),
+    })),
+  })
+})
+
+usersRouter.get('/stats/recent-failures', async (c) => {
+  const limit = Math.min(Number(c.req.query('limit') ?? 6), 50)
+  const rows = (await db.execute(sql`
+    SELECT j.id, j.filename, j.error_message, j.created_at, u.username
+    FROM jobs j
+    JOIN users u ON u.id = j.user_id
+    WHERE j.status = 'failed'
+    ORDER BY j.created_at DESC
+    LIMIT ${limit}
+  `)) as Array<{ id: string; filename: string; error_message: string | null; created_at: string; username: string }>
+  return c.json({ failures: rows })
+})
 
 usersRouter.get('/', async (c) => {
   const rows = await db
@@ -128,7 +236,6 @@ const displayNameSchema = z.object({
   displayName: z.string().min(1).max(80),
 })
 
-// Set display name used to match action item owners to this user.
 usersRouter.patch('/:id/display-name', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json().catch(() => null)
@@ -147,8 +254,6 @@ usersRouter.patch('/:id/display-name', async (c) => {
   return c.json({ ok: true, displayName: updated.displayName })
 })
 
-// Generate (or reset) the personal task-share token. Returns the new token and
-// the public path the user can open to see all their action items.
 usersRouter.post('/:id/task-token', async (c) => {
   const id = c.req.param('id')
   const token = nanoid(32)

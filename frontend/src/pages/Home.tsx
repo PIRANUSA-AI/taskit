@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, ArrowClockwise, Coin } from '@phosphor-icons/react'
+import { Plus, ArrowClockwise, Coin, ArrowRight, MicrophoneStage } from '@phosphor-icons/react'
 import { UploadZone, type Lang } from '../components/UploadZone'
 import { JobStatus } from '../components/JobStatus'
 import { HistoryList } from '../components/HistoryList'
@@ -83,9 +83,11 @@ export default function Home() {
     state.stage === 'error' ||
     !!job
 
+  const greetingName = user?.displayName ?? user?.username ?? ''
+
   return (
     <div
-      className="min-h-[100dvh] pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-16 bg-white"
+      className="min-h-[100dvh] pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-24 bg-paper"
       onTouchStart={showHero ? onTouchStart : undefined}
       onTouchMove={showHero ? onTouchMove : undefined}
       onTouchEnd={showHero ? onTouchEnd : undefined}
@@ -100,7 +102,7 @@ export default function Home() {
             className="fixed top-14 inset-x-0 z-20 flex justify-center pointer-events-none"
             style={{ transform: `translateY(${Math.min(pullDist * 0.5, 20)}px)` }}
           >
-            <div className="bg-ink text-white rounded-full px-3 py-1.5 flex items-center gap-2 text-xs font-medium shadow-lg">
+            <div className="bg-navy text-white rounded-full px-3 py-1.5 flex items-center gap-2 text-xs font-medium shadow-dock">
               <ArrowClockwise
                 size={14}
                 weight="bold"
@@ -114,28 +116,36 @@ export default function Home() {
       </AnimatePresence>
 
       {showHero && (
-        <section className="mx-auto max-w-3xl px-4 md:px-8 pt-12 md:pt-24">
+        <section className="mx-auto max-w-3xl px-4 md:px-8 pt-10 md:pt-16">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: 'spring', stiffness: 100, damping: 22 }}
           >
-            <p className="eyebrow mb-5">Hai, {user?.username}</p>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl tracking-tightest leading-[1] font-semibold">
-              Rapat panjang.
+            <div className="flex items-center justify-between gap-3 mb-5">
+              <p className="eyebrow flex items-center gap-1.5">
+                <MicrophoneStage size={11} weight="fill" /> Hai, {greetingName}
+              </p>
+              {user?.creditSeconds !== undefined && (
+                <span className="chip bg-brand-soft text-brand-deep tabular">
+                  <Coin size={11} weight="fill" />
+                  {Math.floor(user.creditSeconds / 60)}m kredit
+                </span>
+              )}
+            </div>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl tracking-tightest leading-[1] font-semibold text-navy">
+              Kamu Rekam.
               <br />
-              <span className="text-zinc-400">Transkrip rapi.</span>
+              <span className="text-brand">Saya Ketik.</span>
             </h1>
-            <p className="mt-5 text-[15px] sm:text-base text-zinc-600 leading-relaxed max-w-[52ch]">
-              Upload audio meeting hingga {MAX_UPLOAD_MB} MB. Dapatkan transkrip dengan timestamp dan label
-              pembicara, langsung bisa di-copy atau di-export.
+            <p className="mt-5 text-[15px] sm:text-base text-ink-muted leading-relaxed max-w-[52ch]">
             </p>
           </motion.div>
         </section>
       )}
 
       {showStatus && (
-        <section className="mx-auto max-w-3xl px-4 md:px-8 pt-12 md:pt-24">
+        <section className="mx-auto max-w-3xl px-4 md:px-8 pt-10 md:pt-16">
           <JobStatus
             upload={state}
             job={job}
@@ -146,14 +156,14 @@ export default function Home() {
       )}
 
       {showHero && (
-        <section id="upload" className="mx-auto max-w-3xl px-4 md:px-8 mt-10 md:mt-14">
+        <section id="upload" className="mx-auto max-w-3xl px-4 md:px-8 mt-8 md:mt-10">
           {user?.creditSeconds === 0 ? (
-            <div className="card p-8 text-center shadow-sm">
+            <div className="card p-8 text-center">
               <div className="grid place-items-center w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 mx-auto mb-4">
                 <Coin weight="duotone" size={28} className="text-amber-500" />
               </div>
-              <h3 className="text-lg font-semibold tracking-tight">Kredit habis</h3>
-              <p className="mt-2 text-sm text-zinc-500 leading-relaxed max-w-xs mx-auto">
+              <h3 className="text-lg font-semibold tracking-tight text-navy">Kredit habis</h3>
+              <p className="mt-2 text-sm text-ink-muted leading-relaxed max-w-xs mx-auto">
                 Kamu tidak punya kredit tersisa. Hubungi admin untuk topup dan lanjutkan transkrip.
               </p>
             </div>
@@ -164,12 +174,17 @@ export default function Home() {
       )}
 
       {showHero && (
-        <section id="history" className="mx-auto max-w-3xl px-4 md:px-8 mt-16 md:mt-24">
-          <div className="flex items-baseline justify-between mb-5">
-            <h2 className="text-xl tracking-tight font-semibold">Riwayat</h2>
-            <span className="text-xs text-zinc-400">milik {user?.username}</span>
+        <section id="history" className="mx-auto max-w-3xl px-4 md:px-8 mt-12 md:mt-16">
+          <div className="flex items-baseline justify-between mb-4">
+            <h2 className="text-lg tracking-tight font-semibold text-navy">Transkrip terbaru</h2>
+            <Link
+              to="/riwayat"
+              className="text-xs font-semibold text-brand-deep hover:text-brand flex items-center gap-1"
+            >
+              Lihat semua <ArrowRight size={11} weight="bold" />
+            </Link>
           </div>
-          <HistoryList refreshKey={historyKey} />
+          <HistoryList refreshKey={historyKey} limit={3} emptyAction />
         </section>
       )}
 
@@ -184,8 +199,8 @@ export default function Home() {
             transition={{ type: 'spring', stiffness: 400, damping: 28 }}
             whileTap={{ scale: 0.92 }}
             onClick={scrollToUpload}
-            className="md:hidden fixed right-5 z-40 w-14 h-14 rounded-full bg-ink text-white shadow-xl grid place-items-center"
-            style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom))' }}
+            className="md:hidden fixed right-5 z-40 w-14 h-14 rounded-full bg-brand text-white shadow-dock grid place-items-center"
+            style={{ bottom: 'calc(6.5rem + env(safe-area-inset-bottom))' }}
             aria-label="Upload baru"
           >
             <Plus size={24} weight="bold" />

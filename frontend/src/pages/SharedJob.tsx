@@ -7,7 +7,7 @@ import { LoadingScreen } from '../components/LoadingScreen'
 import { TranscriptViewer } from '../components/TranscriptViewer'
 import { TitleScrambler } from '../components/TitleScrambler'
 import { formatBytes, formatDuration, formatRelativeTime } from '../lib/format'
-import { Logo } from '../components/Navbar'
+import { BrandMark } from '../components/Brand'
 
 export default function SharedJob() {
   const { token } = useParams<{ token: string }>()
@@ -28,13 +28,13 @@ export default function SharedJob() {
 
   if (error) {
     return (
-      <div className="min-h-[100dvh] grid place-items-center p-6 bg-white">
+      <div className="min-h-[100dvh] grid place-items-center p-6 bg-paper aurora">
         <div className="text-center max-w-sm">
           <WarningCircle weight="duotone" size={48} className="mx-auto text-red-500" />
-          <p className="mt-3 font-medium">{error}</p>
-          <Link to="/" className="btn-ghost mt-6 inline-flex">
+          <p className="mt-3 font-medium text-navy">{error}</p>
+          <Link to="/welcome" className="btn-ghost mt-6 inline-flex">
             <ArrowLeft size={16} />
-            Beranda ALTO
+            Beranda PIRANUSA
           </Link>
         </div>
       </div>
@@ -46,14 +46,14 @@ export default function SharedJob() {
   const isReady = job.status === 'completed' && job.transcript
 
   return (
-    <div className="min-h-[100dvh] bg-white">
-      <header className="border-b border-zinc-200/70 bg-white/85 backdrop-blur-xl">
+    <div className="min-h-[100dvh] bg-paper">
+      <header className="border-b border-slate-200/70 bg-paper/85 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 md:px-8">
-          <Link to="/" className="flex items-center gap-2.5">
-            <Logo />
-            <span className="text-[15px] font-semibold tracking-tight">ALTO</span>
+          <Link to="/welcome" className="flex items-center gap-2.5">
+            <BrandMark size={28} />
+            <span className="text-[15px] font-semibold tracking-tight text-navy">PIRANUSA</span>
           </Link>
-          <span className="text-xs font-medium text-zinc-400">Link publik</span>
+          <span className="text-xs font-medium text-slate-400">Link publik</span>
         </div>
       </header>
 
@@ -65,7 +65,7 @@ export default function SharedJob() {
         >
           <div className="min-w-0">
             <h1
-              className="text-2xl md:text-3xl tracking-tightest font-semibold leading-tight truncate"
+              className="text-2xl md:text-3xl tracking-tightest font-semibold leading-tight truncate text-navy"
               title={job.filename}
             >
               <TitleScrambler
@@ -73,7 +73,7 @@ export default function SharedJob() {
                 to={job.status === 'completed' ? job.title : null}
               />
             </h1>
-            <p className="mt-2 text-xs text-zinc-500 tabular-nums">
+            <p className="mt-2 text-xs text-ink-muted tabular">
               {[
                 formatRelativeTime(job.createdAt),
                 job.durationSec ? formatDuration(job.durationSec) : null,
@@ -81,7 +81,7 @@ export default function SharedJob() {
                 job.transcript?.speakerCount ? `${job.transcript.speakerCount} pembicara` : null,
               ]
                 .filter(Boolean)
-                .join(' Â· ')}
+                .join(' | ')}
             </p>
           </div>
         </motion.div>
@@ -102,7 +102,7 @@ export default function SharedJob() {
               <h2 className="mt-4 text-lg font-semibold">
                 {job.status === 'cancelled' ? 'Transkrip dibatalkan' : 'Transkrip gagal'}
               </h2>
-              <p className="mt-2 text-sm text-zinc-600 max-w-md mx-auto break-words">
+              <p className="mt-2 text-sm text-ink-muted max-w-md mx-auto break-words">
                 {job.status === 'cancelled'
                   ? 'Link ini tidak lagi menampilkan transkrip karena job dibatalkan.'
                   : job.error || 'Terjadi kesalahan tak dikenal.'}
@@ -114,7 +114,7 @@ export default function SharedJob() {
                 {[0, 1, 2, 3, 4].map((i) => (
                   <span
                     key={i}
-                    className="w-1.5 bg-ink rounded-full animate-pulse-ring"
+                    className="w-1.5 bg-navy rounded-full animate-pulse-ring"
                     style={{
                       animationDelay: `${i * 120}ms`,
                       height: `${20 + (i % 3) * 12}px`,
@@ -122,7 +122,7 @@ export default function SharedJob() {
                   />
                 ))}
               </div>
-              <p className="text-sm text-zinc-600">Transkrip belum selesai diproses.</p>
+              <p className="text-sm text-ink-muted">Transkrip belum selesai diproses.</p>
             </div>
           )}
         </div>

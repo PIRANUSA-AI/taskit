@@ -59,36 +59,36 @@ export function TopupModal({ user, onClose, onSuccess }: Props) {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 400, damping: 38 }}
-            className="fixed bottom-0 inset-x-0 z-[70] bg-white rounded-t-3xl shadow-2xl border-t border-zinc-200/80"
+            className="fixed bottom-0 inset-x-0 z-[70] bg-white rounded-t-3xl shadow-2xl border-t border-slate-200/80"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.25rem)' }}
           >
             <div className="flex justify-center pt-2.5 pb-4">
-              <div className="w-10 h-1 rounded-full bg-zinc-300" />
+              <div className="w-10 h-1 rounded-full bg-slate-300" />
             </div>
 
             <div className="px-5">
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h2 className="text-base font-semibold">Topup Kredit</h2>
-                  <p className="text-xs text-zinc-500 mt-0.5">untuk <span className="font-medium text-zinc-800">{user.username}</span></p>
+                  <p className="text-xs text-ink-muted mt-0.5">untuk <span className="font-medium text-navy">{user.username}</span></p>
                 </div>
                 <button
                   onClick={onClose}
-                  className="w-8 h-8 grid place-items-center rounded-full bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                  className="w-8 h-8 grid place-items-center rounded-full bg-slate-100 text-ink-muted hover:bg-slate-200"
                 >
                   <X size={14} weight="bold" />
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-zinc-50 border border-zinc-200/80 mb-5">
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-paper border border-slate-200/80 mb-5">
                 <Coin weight="duotone" size={18} className="text-amber-500 flex-shrink-0" />
                 <div>
-                  <p className="text-[10px] text-zinc-400 uppercase tracking-wide font-medium">Sisa Kredit</p>
-                  <p className="text-sm font-semibold tabular-nums">{formatDuration(user.creditSeconds)}</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">Sisa Kredit</p>
+                  <p className="text-sm font-semibold tabular">{formatDuration(user.creditSeconds)}</p>
                 </div>
               </div>
 
-              <p className="text-xs text-zinc-500 mb-2 font-medium">Tambah berapa menit?</p>
+              <p className="text-xs text-ink-muted mb-2 font-medium">Tambah berapa menit?</p>
               <div className="flex gap-2 mb-3">
                 {QUICK_OPTIONS.map((opt) => (
                   <button
@@ -96,8 +96,8 @@ export function TopupModal({ user, onClose, onSuccess }: Props) {
                     onClick={() => handleQuick(opt.minutes)}
                     className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${
                       minutes === String(opt.minutes)
-                        ? 'bg-ink text-white border-ink'
-                        : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:border-zinc-400'
+                        ? 'bg-navy text-white border-navy'
+                        : 'bg-paper text-navy border-slate-200 hover:border-brand'
                     }`}
                   >
                     {opt.label}
@@ -116,7 +116,7 @@ export function TopupModal({ user, onClose, onSuccess }: Props) {
                   className="input w-full pr-12"
                 />
                 {valid && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400 tabular-nums">
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 tabular">
                     = {formatDuration(parsed * 60)}
                   </span>
                 )}

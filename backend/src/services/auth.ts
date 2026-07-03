@@ -23,6 +23,8 @@ export async function createUser(input: {
   username: string
   password: string
   isAdmin?: boolean
+  displayName?: string
+  creditSeconds?: number
 }): Promise<User> {
   const passwordHash = await hashPassword(input.password)
   const [user] = await db
@@ -32,6 +34,8 @@ export async function createUser(input: {
       username: input.username,
       passwordHash,
       isAdmin: input.isAdmin ?? false,
+      displayName: input.displayName,
+      creditSeconds: input.creditSeconds ?? 0,
     })
     .returning()
   return user

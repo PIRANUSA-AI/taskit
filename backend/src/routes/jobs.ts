@@ -7,7 +7,7 @@ import { actionItems, jobs, users, type ActionItemRow, type JobStatus } from '..
 import { requireAuth, type AppEnv } from '../middleware/auth.js'
 import { isAllowedMime, normalizeMime, MAX_FILE_BYTES } from '../lib/validate.js'
 import { cacheJobStatus, getCachedJobStatus } from '../services/cache.js'
-import { createUploadUrl, isObjectStorageEnabled, isObjectStorageRequired } from '../services/storage.js'
+import { createDownloadUrl, createUploadUrl, isObjectStorageEnabled, isObjectStorageRequired } from '../services/storage.js'
 
 const directBrowserUploadEnabled = process.env.BROWSER_DIRECT_UPLOAD === 'true'
 
@@ -196,6 +196,26 @@ jobsRouter.get('/:id', async (c) => {
 
   const items = job.status === 'completed' ? await loadActionItems(id) : []
   return c.json(toJobDetail(job, true, progress, items))
+})
+
+jobsRouter.get('/:id/audio', requireAuth, async (c) => {
+  const user = c.get('user')
+  const id = c.req.param('id')
+
+  const [job] = await db
+    .select({ storageKey: jobs.storageKey, userId: jobs.userId, mimeType: jobs.mimeType })
+    .from(jobs)
+    .where(eq(jobs.id, id))
+    .limit(1)
+
+  if (!job) return c.json({ error: 'Job tidak ditemukan' }, 404)
+  if (job.userId !== user.id && !user.isAdmin) return c.json({ error: 'Forbidden' }, 403)
+  if (!job.storageKey) return c.json({ error: 'Audio tidak tersedia' }, 404)
+
+  if (!isObjectStorageEnabled()) return c.json({ error: 'Object storage tidak aktif' }, 500)
+
+  const url = await createDownloadUrl(job.storageKey)
+  return c.json({ url, mimeType: job.mimeType ?? 'audio/mpeg' })
 })
 
 jobsRouter.post('/:id/share', async (c) => {

@@ -7,7 +7,6 @@ import type { AppEnv } from '../middleware/auth.js'
 
 export const tasksRouter = new Hono<AppEnv>()
 
-// Resolve the user that owns a task-share token. Returns null if not found.
 async function findUserByToken(token: string) {
   const [row] = await db
     .select({
@@ -22,9 +21,6 @@ async function findUserByToken(token: string) {
   return { ...row, matchName: (row.displayName ?? row.username).trim().toLowerCase() }
 }
 
-// All action items belonging to a user across all meetings. A row belongs to
-// the user if either (a) it has been explicitly assigned via assigneeId, or
-// (b) its owner label case-insensitively matches the user's display name.
 tasksRouter.get('/:token', async (c) => {
   const token = c.req.param('token')
   const user = await findUserByToken(token)
@@ -49,19 +45,20 @@ tasksRouter.get('/:token', async (c) => {
       jobCompletedAt: jobs.completedAt,
     })
     .from(actionItems)
-    .innerJoin(jobs, eq(jobs.id, actionItems.jobId))
+    .leftJoin(jobs, eq(jobs.id, actionItems.jobId))
     .where(
       and(
-        eq(jobs.status, 'completed'),
+        or(sql`${actionItems.jobId} IS NULL`, eq(jobs.status, 'completed')),
         or(
           eq(actionItems.assigneeId, user.id),
           sql`LOWER(${actionItems.owner}) = ${matchName}`
         )
       )
     )
-    .orderBy(desc(jobs.createdAt), asc(actionItems.order), asc(actionItems.createdAt))
+    .orderBy(desc(sql`COALESCE(${jobs.createdAt}, ${actionItems.createdAt})`), asc(actionItems.order), asc(actionItems.createdAt))
 
-  // Group by job (meeting). First-appearance order.
+  // Group by job (meeting) or playground. First-appearance order.
+  const playgroundId = '__playground'
   const byJob = new Map<
     string,
     {
@@ -75,15 +72,16 @@ tasksRouter.get('/:token', async (c) => {
   >()
 
   for (const r of rows) {
-    const existing = byJob.get(r.jobId)
+    const key = r.jobId ?? playgroundId
+    const existing = byJob.get(key)
     if (existing) {
       existing.items.push(r)
     } else {
-      byJob.set(r.jobId, {
-        jobId: r.jobId,
+      byJob.set(key, {
+        jobId: key,
         title: r.jobTitle,
-        filename: r.jobFilename,
-        createdAt: r.jobCreatedAt,
+        filename: r.jobFilename ?? '',
+        createdAt: r.jobCreatedAt ?? r.createdAt,
         completedAt: r.jobCompletedAt,
         items: [r],
       })
@@ -100,8 +98,6 @@ tasksRouter.get('/:token', async (c) => {
   })
 })
 
-// Toggle done / edit task text / due. The token holder may only mutate items
-// that belong to them (matched the same way as the GET).
 const itemPatchSchema = z.object({
   done: z.boolean().optional(),
   task: z.string().min(1).max(400).optional(),
@@ -148,9 +144,6 @@ tasksRouter.patch('/:token/item/:itemId', async (c) => {
   return c.json({ ok: true })
 })
 
-// Optional helper: explicitly claim an item for the token holder (e.g. admin
-// re-assigns via UI, but exposed here for the holder to "accept" an item that
-// wasn't auto-matched). Kept minimal; frontend can ignore until needed.
 tasksRouter.post('/:token/item/:itemId/claim', async (c) => {
   const token = c.req.param('token')
   const itemId = c.req.param('itemId')

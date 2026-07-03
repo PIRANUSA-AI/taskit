@@ -59,7 +59,7 @@ function derivePhase(
     return {
       phase: 'transcribing',
       progress: job?.progress ?? (job?.status === 'queued' ? 20 : 60),
-      message: job?.status === 'queued' ? 'Masuk antrian' : 'ALTO sedang mendengarkan',
+      message: job?.status === 'queued' ? 'Masuk antrian' : 'PIRANUSA sedang mendengarkan',
       detail:
         job?.status === 'queued'
           ? 'Audio sudah terkirim dan menunggu worker transkrip.'
@@ -119,23 +119,23 @@ export function JobStatus({ upload, job, onReset, onViewTranscript }: Props) {
           <h2 className="mt-2 text-2xl sm:text-3xl tracking-tightest font-semibold leading-tight">
             {message}
           </h2>
-          <p className="mt-2 text-sm text-zinc-600 max-w-md mx-auto sm:mx-0 leading-relaxed">
+          <p className="mt-2 text-sm text-ink-muted max-w-md mx-auto sm:mx-0 leading-relaxed">
             {detail}
           </p>
 
           {(phase === 'uploading' || phase === 'transcribing') && (
             <div className="mt-5 max-w-md mx-auto sm:mx-0 w-full">
-              <div className="h-1 rounded-full bg-zinc-100 overflow-hidden">
+              <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
                 <motion.div
-                  className="h-full bg-ink rounded-full"
+                  className="h-full bg-navy rounded-full"
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
                   transition={{ type: 'spring', stiffness: 80, damping: 22 }}
                 />
               </div>
-              <div className="mt-2 flex justify-between text-xs text-zinc-500">
+              <div className="mt-2 flex justify-between text-xs text-ink-muted">
                 <span>{phase === 'uploading' ? 'Mengirim' : job?.status === 'queued' ? 'Menunggu' : 'Memproses'}</span>
-                <span className="tabular-nums">{Math.round(progress)}%</span>
+                <span className="tabular">{Math.round(progress)}%</span>
               </div>
             </div>
           )}

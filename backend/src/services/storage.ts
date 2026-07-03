@@ -41,6 +41,13 @@ function client(): S3Client {
   })
 }
 
+export async function createDownloadUrl(key: string): Promise<string> {
+  const command = new GetObjectCommand({ Bucket: bucket(), Key: key })
+  return getSignedUrl(client(), command, {
+    expiresIn: Number(process.env.S3_SIGNED_URL_TTL_SEC ?? DEFAULT_SIGNED_URL_TTL_SEC),
+  })
+}
+
 export async function createUploadUrl(args: {
   key: string
   mimeType: string

@@ -69,7 +69,7 @@ async function main() {
     console.log(`Re-queued ${recovered.length} in-flight job(s):`, recovered.map((job) => job.id))
   }
 
-  console.log(`ALTO worker ${workerId} polling every ${pollMs}ms`)
+  console.log(`PIRANUSA worker ${workerId} polling every ${pollMs}ms`)
   for (;;) {
     try {
       await tick()

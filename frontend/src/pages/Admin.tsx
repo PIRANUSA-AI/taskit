@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Plus,
@@ -10,36 +11,87 @@ import {
   Coin,
   Clipboard,
   Link as LinkIcon,
+  ChartLineUp,
+  Files,
+  Clock,
+  CheckSquare,
+  Users as UsersIcon,
+  WarningCircle,
+  ListChecks,
 } from '@phosphor-icons/react'
 import { ApiError, api, type ManagedUser } from '../lib/api'
 import { formatRelativeTime, formatDuration } from '../lib/format'
 import { useAuth } from '../hooks/useAuth'
 import { TopupModal } from '../components/TopupModal'
+import { LineChart, BarChart, DonutProgress } from '../components/charts'
+
+interface Overview {
+  users: number
+  admins: number
+  jobs: number
+  completedJobs: number
+  failedJobs: number
+  completionRate: number
+  totalDurationSec: number
+  actionItems: number
+  actionItemsDone: number
+  actionItemsCompletionRate: number
+}
+interface TrendPoint { date: string; count: number; duration: number }
+interface TopUser {
+  id?: string
+  username: string
+  displayName: string | null
+  jobsCompleted: number
+  totalDuration: number
+}
+interface Failure {
+  id: string
+  filename: string
+  error_message: string | null
+  created_at: string
+  username: string
+}
 
 export default function Admin() {
   const { user: self } = useAuth()
   const [users, setUsers] = useState<ManagedUser[] | null>(null)
+  const [overview, setOverview] = useState<Overview | null>(null)
+  const [trend, setTrend] = useState<TrendPoint[] | null>(null)
+  const [topUsers, setTopUsers] = useState<TopUser[] | null>(null)
+  const [failures, setFailures] = useState<Failure[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
   const [newUsername, setNewUsername] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [newDisplayName, setNewDisplayName] = useState('')
   const [makeAdmin, setMakeAdmin] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
   const [topupTarget, setTopupTarget] = useState<ManagedUser | null>(null)
 
-  const load = async () => {
+  const loadAll = async () => {
     try {
-      const data = await api.get<{ users: ManagedUser[] }>('/users')
-      setUsers(data.users)
+      const [u, o, t, top, f] = await Promise.all([
+        api.get<{ users: ManagedUser[] }>('/users'),
+        api.get<Overview>('/users/stats/overview'),
+        api.get<{ points: TrendPoint[] }>('/users/stats/jobs-trend?days=30'),
+        api.get<{ users: TopUser[] }>('/users/stats/top-users?limit=6'),
+        api.get<{ failures: Failure[] }>('/users/stats/recent-failures?limit=5'),
+      ])
+      setUsers(u.users)
+      setOverview(o)
+      setTrend(t.points)
+      setTopUsers(top.users)
+      setFailures(f.failures)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat user')
+      setError(err instanceof Error ? err.message : 'Gagal memuat data admin')
     }
   }
 
   useEffect(() => {
-    void load()
+    void loadAll()
   }, [])
 
   const flashSuccess = (msg: string) => {
@@ -56,11 +108,13 @@ export default function Admin() {
         username: newUsername.trim(),
         password: newPassword,
         isAdmin: makeAdmin,
+        displayName: newDisplayName.trim() || undefined,
       })
       setNewUsername('')
       setNewPassword('')
+      setNewDisplayName('')
       setMakeAdmin(false)
-      await load()
+      await loadAll()
       flashSuccess(`User "${newUsername}" dibuat`)
     } catch (err) {
       if (err instanceof ApiError) setCreateError(err.message)
@@ -78,7 +132,7 @@ export default function Admin() {
     if (!confirm(`Hapus user "${u.username}"? Semua transkripnya juga akan terhapus.`)) return
     try {
       await api.delete(`/users/${u.id}`)
-      await load()
+      await loadAll()
       flashSuccess(`User "${u.username}" dihapus`)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Gagal menghapus')
@@ -87,8 +141,8 @@ export default function Admin() {
 
   const handleResetPassword = async (u: ManagedUser) => {
     const np = prompt(`Password baru untuk "${u.username}":`)
-    if (!np || np.length < 3) {
-      if (np !== null) alert('Password minimal 3 karakter')
+    if (!np || np.length < 8) {
+      if (np !== null) alert('Password minimal 8 karakter')
       return
     }
     try {
@@ -101,76 +155,149 @@ export default function Admin() {
 
   const handleTopupCredits = (u: ManagedUser) => setTopupTarget(u)
 
-  const handleSetDisplayName = async (u: ManagedUser) => {
-    const name = prompt(`Nama tampilan untuk "${u.username}" (dipakai mencocokkan tugas AI):`, u.displayName ?? u.username)
-    if (name === null) return
-    const trimmed = name.trim()
-    if (!trimmed) return
+  const handleCopyTaskLink = async (u: ManagedUser) => {
     try {
-      await api.patch(`/users/${u.id}/display-name`, { displayName: trimmed })
-      await load()
-      flashSuccess(`Nama tampilan "${u.username}" diperbarui`)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal memperbarui nama')
-    }
-  }
-
-  const handleGenerateTaskLink = async (u: ManagedUser) => {
-    try {
-      const res = await api.post<{ taskPath: string }>(`/users/${u.id}/task-token`)
-      await load()
-      const url = `${window.location.origin}${res.taskPath}`
-      await navigator.clipboard.writeText(url)
-      flashSuccess(`Link tugas "${u.username}" disalin ke clipboard`)
+      if (!u.taskShareToken) {
+        const res = await api.post<{ taskPath: string }>(`/users/${u.id}/task-token`)
+        await loadAll()
+        await navigator.clipboard.writeText(`${window.location.origin}${res.taskPath}`)
+      } else {
+        await navigator.clipboard.writeText(`${window.location.origin}/tasks/${u.taskShareToken}`)
+      }
+      flashSuccess(`Link tugas "${u.username}" disalin`)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Gagal membuat link tugas')
     }
   }
 
-  const handleCopyTaskLink = async (u: ManagedUser) => {
-    if (!u.taskShareToken) {
-      await handleGenerateTaskLink(u)
-      return
-    }
-    const url = `${window.location.origin}/tasks/${u.taskShareToken}`
-    try {
-      await navigator.clipboard.writeText(url)
-      flashSuccess(`Link tugas "${u.username}" disalin`)
-    } catch {
-      prompt('Salin link ini:', url)
-    }
-  }
-
   return (
-    <div className="mx-auto max-w-4xl px-4 md:px-8 py-12">
-      <header className="mb-10">
+    <div className="mx-auto max-w-6xl px-4 md:px-8 pt-8 md:pt-12 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-32">
+      <header className="mb-8">
         <p className="eyebrow mb-2">Admin</p>
-        <h1 className="text-3xl md:text-4xl tracking-tightest font-semibold">
-          Manajemen User
+        <h1 className="text-3xl md:text-4xl tracking-tightest font-semibold text-navy">
+          Dashboard Tim
         </h1>
-        <p className="mt-2 text-sm text-zinc-600 max-w-md leading-relaxed">
-          Tambah, hapus, atau reset password anggota tim. Setiap user punya history transkrip
-          terpisah.
+        <p className="mt-2 text-sm text-ink-muted max-w-md leading-relaxed">
+          Kelola user, monitor penggunaan, dan pastikan tim tertuntaskan.
         </p>
+        <Link
+          to="/admin/playground"
+          className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-brand-deep hover:text-brand bg-brand-soft px-3 py-2 rounded-lg transition-colors"
+        >
+          <ListChecks size={14} weight="bold" />
+          Playground Tugas
+        </Link>
       </header>
 
       {flash && (
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6 flex items-center gap-2 rounded-xl bg-ink text-white px-4 py-2.5 text-sm"
+          className="mb-6 flex items-center gap-2 rounded-xl bg-navy text-white px-4 py-2.5 text-sm"
         >
           <CheckCircle weight="fill" size={16} />
           {flash}
         </motion.div>
       )}
 
-      <section className="card p-5 sm:p-7 mb-10 shadow-sm">
-        <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-          <Plus weight="bold" size={16} />
-          Tambah User
+      {error && <p className="text-sm text-red-600 mb-6">{error}</p>}
+
+      {/* Analytics overview (desktop-dense, mobile-stacked) */}
+      {overview && (
+        <section className="mb-8" aria-label="Analytics">
+          <div className="flex items-center gap-2 mb-4">
+            <ChartLineUp size={14} weight="bold" className="text-brand-deep" />
+            <h2 className="text-sm font-semibold text-navy">Ringkasan tim</h2>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <StatCard icon={UsersIcon} label="Anggota" value={String(overview.users)} sub={`${overview.admins} admin`} color="navy" />
+            <StatCard icon={Files} label="Total transkrip" value={String(overview.jobs)} sub={`${overview.completedJobs} selesai`} color="brand" />
+            <StatCard icon={Clock} label="Total durasi" value={formatDuration(overview.totalDurationSec)} color="emerald" />
+            <StatCard icon={CheckSquare} label="Action items" value={String(overview.actionItems)} sub={`${overview.actionItemsDone} selesai`} color="violet" />
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-3">
+            {/* Jobs trend line */}
+            <div className="card p-5 md:col-span-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-1">
+                Transkrip 30 hari terakhir
+              </p>
+              <p className="text-2xl font-semibold text-navy tabular mb-3">
+                {trend ? trend.reduce((a, b) => a + b.count, 0) : '—'}
+                <span className="text-sm text-ink-muted font-normal ml-2">rapat</span>
+              </p>
+              {trend && <LineChart points={trend} label="Tren transkrip" />}
+            </div>
+
+            {/* Completion donut */}
+            <div className="card p-5 flex flex-col items-center justify-center">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-3 self-start">
+                Action items selesai
+              </p>
+              <DonutProgress
+                value={overview.actionItemsCompletionRate}
+                label="selesai"
+                color="#6366F1"
+              />
+              <p className="text-[11px] text-ink-muted mt-3 tabular text-center">
+                {overview.actionItemsDone} dari {overview.actionItems} tugas
+              </p>
+            </div>
+          </div>
+
+          {/* Top users + recent failures */}
+          <div className="grid md:grid-cols-2 gap-3 mt-3">
+            <div className="card p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-4">
+                Pengguna paling aktif
+              </p>
+              {topUsers && (
+                <BarChart
+                  items={topUsers.map((u) => ({
+                    label: u.displayName ?? u.username,
+                    value: u.jobsCompleted,
+                    sub: `· ${formatDuration(u.totalDuration)}`,
+                  }))}
+                  label="Top user"
+                />
+              )}
+            </div>
+
+            <div className="card p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-4">
+                Kegagalan terbaru
+              </p>
+              {failures && failures.length === 0 ? (
+                <p className="text-xs text-ink-muted">Tidak ada job gagal. 🎉</p>
+              ) : (
+                <ul className="space-y-2.5">
+                  {failures?.slice(0, 5).map((f) => (
+                    <li key={f.id} className="flex items-start gap-2.5">
+                      <span className="grid place-items-center w-7 h-7 rounded-lg bg-red-50 text-red-600 flex-shrink-0 mt-0.5">
+                        <WarningCircle size={13} weight="fill" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-ink truncate">{f.filename}</p>
+                        <p className="text-[11px] text-ink-muted truncate">
+                          @{f.username} · {formatRelativeTime(f.created_at)}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Create user */}
+      <section className="card p-5 sm:p-7 mb-8">
+        <h2 className="text-sm font-semibold mb-4 flex items-center gap-2 text-navy">
+          <Plus weight="bold" size={16} /> Tambah anggota
         </h2>
-        <form onSubmit={handleCreate} className="grid sm:grid-cols-[1fr_1fr_auto] gap-3">
+        <form onSubmit={handleCreate} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
             <label className="label">Username</label>
             <input
@@ -185,18 +312,28 @@ export default function Admin() {
             />
           </div>
           <div>
+            <label className="label">Nama tampilan</label>
+            <input
+              type="text"
+              value={newDisplayName}
+              onChange={(e) => setNewDisplayName(e.target.value)}
+              className="input"
+              placeholder="contoh: Rangga D."
+            />
+          </div>
+          <div>
             <label className="label">Password</label>
             <input
               type="password"
               required
-              minLength={3}
+              minLength={8}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="input"
-              placeholder="min. 3 karakter"
+              placeholder="min. 8 karakter"
             />
           </div>
-          <div className="sm:self-end">
+          <div className="self-end">
             <button
               type="submit"
               disabled={creating || !newUsername || !newPassword}
@@ -205,26 +342,22 @@ export default function Admin() {
               {creating ? 'Membuat…' : 'Tambah'}
             </button>
           </div>
-
-          <label className="sm:col-span-3 flex items-center gap-2 text-sm text-zinc-600 cursor-pointer select-none">
+          <label className="sm:col-span-2 lg:col-span-4 flex items-center gap-2 text-sm text-ink-muted cursor-pointer select-none">
             <input
               type="checkbox"
               checked={makeAdmin}
               onChange={(e) => setMakeAdmin(e.target.checked)}
-              className="rounded border-zinc-300 text-ink focus:ring-zinc-900/20"
+              className="rounded border-slate-300 text-brand focus:ring-brand/20"
             />
             Jadikan admin (bisa kelola user lain)
           </label>
-
-          {createError && <p className="sm:col-span-3 text-sm text-red-600">{createError}</p>}
+          {createError && <p className="sm:col-span-2 lg:col-span-4 text-sm text-red-600">{createError}</p>}
         </form>
       </section>
 
+      {/* User list */}
       <section>
-        <h2 className="text-sm font-semibold mb-3 px-1">Semua User</h2>
-
-        {error && <p className="text-sm text-red-600 px-1">{error}</p>}
-
+        <h2 className="text-sm font-semibold mb-3 px-1 text-navy">Semua anggota</h2>
         {users === null ? (
           <div className="space-y-2">
             {[0, 1, 2].map((i) => (
@@ -232,71 +365,55 @@ export default function Admin() {
             ))}
           </div>
         ) : users.length === 0 ? (
-          <p className="text-sm text-zinc-500 px-1">Belum ada user.</p>
+          <p className="text-sm text-ink-muted px-1">Belum ada user.</p>
         ) : (
-          <ul className="divide-y divide-zinc-200/80 border-t border-b border-zinc-200/80">
+          <ul className="divide-y divide-slate-200/80 border-t border-b border-slate-200/80 bg-surface rounded-xl">
             {users.map((u) => (
-              <li
-                key={u.id}
-                className="flex items-center gap-4 py-4 px-1 -mx-1 hover:bg-zinc-50 rounded-lg"
-              >
+              <li key={u.id} className="flex items-center gap-4 py-4 px-3 hover:bg-paper rounded-lg">
                 <div
                   className={`grid place-items-center w-10 h-10 rounded-xl flex-shrink-0 ${
-                    u.isAdmin
-                      ? 'bg-ink text-white'
-                      : 'bg-zinc-100 border border-zinc-200 text-zinc-600'
+                    u.isAdmin ? 'bg-navy text-white' : 'bg-brand-soft border border-brand/20 text-brand-deep'
                   }`}
                 >
-                  {u.isAdmin ? (
-                    <ShieldStar weight="fill" size={18} />
-                  ) : (
-                    <UserIcon size={18} />
-                  )}
+                  {u.isAdmin ? <ShieldStar weight="fill" size={18} /> : <UserIcon size={18} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">
-                    {u.username}
+                  <p className="font-medium truncate text-ink">
+                    {u.displayName ?? u.username}
                     {u.id === self?.id && (
-                      <span className="ml-2 text-[11px] text-zinc-400 font-normal">(kamu)</span>
+                      <span className="ml-2 text-[11px] text-slate-400 font-normal">(kamu)</span>
                     )}
                   </p>
-                  {u.displayName && u.displayName !== u.username && (
-                    <p className="text-[11px] text-zinc-500 truncate">Nama: {u.displayName}</p>
-                  )}
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    {u.isAdmin ? 'admin · ' : ''}
-                    dibuat {formatRelativeTime(u.createdAt)}
+                  <p className="text-[11px] text-ink-muted truncate">
+                    @{u.username} · {u.isAdmin ? 'admin · ' : ''}dibuat {formatRelativeTime(u.createdAt)}
                   </p>
-                  <p className={`text-xs mt-0.5 font-medium tabular-nums ${u.creditSeconds < 300 ? 'text-red-500' : 'text-emerald-600'}`}>
+                  <p
+                    className={`text-xs mt-0.5 font-medium tabular ${
+                      u.creditSeconds < 300 ? 'text-red-500' : 'text-emerald-600'
+                    }`}
+                  >
                     <Coin size={11} className="inline mr-0.5 mb-0.5" weight="duotone" />
-                    {formatDuration(u.creditSeconds)} kredit tersisa
+                    {formatDuration(u.creditSeconds)} kredit
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => handleCopyTaskLink(u)}
-                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 text-zinc-600"
-                    title="Salin link tugas saya"
+                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-brand-soft hover:text-brand-deep text-slate-500"
+                    title="Salin link tugas"
                   >
                     {u.taskShareToken ? <LinkIcon size={16} /> : <Clipboard size={16} />}
                   </button>
                   <button
-                    onClick={() => handleSetDisplayName(u)}
-                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-sky-50 hover:text-sky-600 text-zinc-600"
-                    title="Nama tampilan (matching tugas)"
-                  >
-                    <UserIcon weight="duotone" size={16} />
-                  </button>
-                  <button
                     onClick={() => handleTopupCredits(u)}
-                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-amber-50 hover:text-amber-600 text-zinc-600"
+                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-amber-50 hover:text-amber-600 text-slate-500"
                     title="Topup kredit"
                   >
                     <Coin size={16} />
                   </button>
                   <button
                     onClick={() => handleResetPassword(u)}
-                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-zinc-200 text-zinc-600"
+                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-slate-100 text-slate-500"
                     title="Reset password"
                   >
                     <Key size={16} />
@@ -304,7 +421,7 @@ export default function Admin() {
                   <button
                     onClick={() => handleDelete(u)}
                     disabled={u.id === self?.id}
-                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-red-50 hover:text-red-600 text-zinc-600 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-zinc-600"
+                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-red-50 hover:text-red-600 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed"
                     title="Hapus user"
                   >
                     <Trash size={16} />
@@ -320,11 +437,48 @@ export default function Admin() {
         user={topupTarget}
         onClose={() => setTopupTarget(null)}
         onSuccess={() => {
-          void load()
+          void loadAll()
           flashSuccess(`Kredit ditambahkan untuk "${topupTarget?.username}"`)
           setTopupTarget(null)
         }}
       />
     </div>
+  )
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  color,
+}: {
+  icon: typeof Coin
+  label: string
+  value: string
+  sub?: string
+  color: 'navy' | 'brand' | 'emerald' | 'violet'
+}) {
+  const colors = {
+    navy: 'bg-navy text-white',
+    brand: 'bg-brand-soft text-brand-deep',
+    emerald: 'bg-emerald-50 text-emerald-600',
+    violet: 'bg-violet-50 text-violet-600',
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="card p-4"
+    >
+      <div className={`grid place-items-center w-9 h-9 rounded-xl ${colors[color]} mb-3`}>
+        <Icon size={16} weight="duotone" />
+      </div>
+      <p className="text-xl font-semibold text-navy tabular leading-tight">{value}</p>
+      <p className="text-[11px] text-ink-muted mt-1 font-medium">
+        {label}
+        {sub && <span className="block text-[10px] opacity-70">{sub}</span>}
+      </p>
+    </motion.div>
   )
 }

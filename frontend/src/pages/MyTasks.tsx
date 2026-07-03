@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, Check, WarningCircle, ListChecks } from '@phosphor-icons/react'
 import { ApiError, api, type MyTasksResponse, type TaskGroupItem } from '../lib/api'
 import { LoadingScreen } from '../components/LoadingScreen'
-import { Logo } from '../components/Navbar'
+import { BrandMark } from '../components/Brand'
 import { formatRelativeTime } from '../lib/format'
 
 const CONFIDENCE_THRESHOLD = 0.55
@@ -49,13 +49,13 @@ export default function MyTasks() {
 
   if (error) {
     return (
-      <div className="min-h-[100dvh] grid place-items-center p-6 bg-white">
+      <div className="min-h-[100dvh] grid place-items-center p-6 bg-paper aurora">
         <div className="text-center max-w-sm">
           <WarningCircle weight="duotone" size={48} className="mx-auto text-red-500" />
-          <p className="mt-3 font-medium">{error}</p>
-          <Link to="/" className="btn-ghost mt-6 inline-flex">
+          <p className="mt-3 font-medium text-navy">{error}</p>
+          <Link to="/welcome" className="btn-ghost mt-6 inline-flex">
             <ArrowLeft size={16} />
-            Beranda ALTO
+            Beranda PIRANUSA
           </Link>
         </div>
       </div>
@@ -69,14 +69,14 @@ export default function MyTasks() {
     .filter((g) => g.items.length > 0)
 
   return (
-    <div className="min-h-[100dvh] bg-white">
-      <header className="border-b border-zinc-200/70 bg-white/85 backdrop-blur-xl sticky top-0 z-10">
+    <div className="min-h-[100dvh] bg-paper">
+      <header className="border-b border-slate-200/70 bg-paper/85 backdrop-blur-xl sticky top-0 z-10">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 md:px-8">
-          <Link to="/" className="flex items-center gap-2.5">
-            <Logo />
-            <span className="text-[15px] font-semibold tracking-tight">ALTO</span>
+          <Link to="/welcome" className="flex items-center gap-2.5">
+            <BrandMark size={28} />
+            <span className="text-[15px] font-semibold tracking-tight text-navy">PIRANUSA</span>
           </Link>
-          <span className="text-xs font-medium text-zinc-400">Tugas saya</span>
+          <span className="text-xs font-medium text-slate-400">Tugas saya</span>
         </div>
       </header>
 
@@ -89,24 +89,21 @@ export default function MyTasks() {
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="eyebrow mb-2">Tugas</p>
-              <h1 className="text-2xl md:text-3xl tracking-tightest font-semibold leading-tight">
+              <h1 className="text-2xl md:text-3xl tracking-tightest font-semibold leading-tight text-navy">
                 {data.user.displayName}
               </h1>
-              <p className="mt-2 text-xs text-zinc-500 tabular-nums">
+              <p className="mt-2 text-xs text-ink-muted tabular">
                 {data.openCount} tugas terbuka · {data.totalCount} total
               </p>
             </div>
-            <div className="grid place-items-center w-12 h-12 rounded-2xl bg-ink text-white flex-shrink-0">
-              <ListChecks weight="duotone" size={22} />
-            </div>
           </div>
 
-          <label className="mt-5 flex items-center gap-2 text-sm text-zinc-600 cursor-pointer select-none">
+          <label className="mt-5 flex items-center gap-2 text-sm text-ink-muted cursor-pointer select-none">
             <input
               type="checkbox"
               checked={hideDone}
               onChange={(e) => setHideDone(e.target.checked)}
-              className="rounded border-zinc-300 text-ink focus:ring-zinc-900/20"
+              className="rounded border-slate-300 text-navy focus:ring-brand/20"
             />
             Sembunyikan tugas yang sudah selesai
           </label>
@@ -115,8 +112,8 @@ export default function MyTasks() {
         <div className="mt-8 space-y-6">
           {visibleGroups.length === 0 ? (
             <div className="card p-12 text-center">
-              <Check weight="duotone" size={40} className="mx-auto text-emerald-500" />
-              <p className="mt-3 text-sm text-zinc-600">
+              <Check weight="duotone" size={40} className="mx-auto text-emerald-600" />
+              <p className="mt-3 text-sm text-ink-muted">
                 {data.totalCount === 0
                   ? 'Belum ada tugas untuk kamu.'
                   : 'Semua tugas sudah selesai. Mantap!'}
@@ -134,19 +131,19 @@ export default function MyTasks() {
                   <h2 className="font-semibold truncate text-[15px]">
                     {g.title ?? g.filename}
                   </h2>
-                  <span className="text-[11px] text-zinc-400 flex-shrink-0 tabular-nums">
+                  <span className="text-[11px] text-slate-400 flex-shrink-0 tabular">
                     {formatRelativeTime(g.completedAt ?? g.createdAt)}
                   </span>
                 </div>
-                <ul className="divide-y divide-zinc-100">
+                <ul className="divide-y divide-slate-100">
                   {g.items.map((it) => (
                     <li key={it.id} className="flex items-start gap-3 py-2.5">
                       <button
                         onClick={() => toggle(it, !it.done)}
                         className={`mt-0.5 grid place-items-center w-5 h-5 rounded-md border flex-shrink-0 transition ${
                           it.done
-                            ? 'bg-ink border-ink text-white'
-                            : 'border-zinc-300 text-transparent hover:border-ink'
+                            ? 'bg-navy border-navy text-white'
+                            : 'border-slate-300 text-transparent hover:border-brand'
                         }`}
                         aria-label={it.done ? 'Tandai belum selesai' : 'Tandai selesai'}
                       >
@@ -155,14 +152,14 @@ export default function MyTasks() {
                       <div className="min-w-0 flex-1">
                         <p
                           className={`text-sm leading-relaxed ${
-                            it.done ? 'line-through text-zinc-400' : 'text-zinc-800'
+                            it.done ? 'line-through text-slate-400' : 'text-navy'
                           }`}
                         >
                           {it.task}
                         </p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {it.due && (
-                            <span className="text-[11px] text-zinc-500 tabular-nums">
+                            <span className="text-[11px] text-ink-muted tabular">
                               Tenggat: {it.due}
                             </span>
                           )}

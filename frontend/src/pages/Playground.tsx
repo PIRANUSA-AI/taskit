@@ -1,0 +1,280 @@
+import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
+import {
+  Check,
+  Trash,
+  PencilSimple,
+  Plus,
+  X,
+  CheckCircle,
+  ListChecks,
+} from '@phosphor-icons/react'
+import { ApiError, api } from '../lib/api'
+import { useAuth } from '../hooks/useAuth'
+
+interface PlaygroundTask {
+  id: string
+  owner: string
+  task: string
+  due: string | null
+  confidence: number
+  done: boolean
+  order: number
+  createdAt: string
+}
+
+interface PlaygroundUser {
+  id: string
+  username: string
+  displayName: string | null
+}
+
+export default function Playground() {
+  const { user } = useAuth()
+  const [tasks, setTasks] = useState<PlaygroundTask[]>([])
+  const [users, setUsers] = useState<PlaygroundUser[]>([])
+  const [newOwner, setNewOwner] = useState('')
+  const [newTask, setNewTask] = useState('')
+  const [newDue, setNewDue] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editTask, setEditTask] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const loadTasks = async () => {
+    try {
+      const [t, u] = await Promise.all([
+        api.get<{ tasks: PlaygroundTask[] }>('/playground/tasks'),
+        api.get<{ users: PlaygroundUser[] }>('/playground/users'),
+      ])
+      setTasks(t.tasks)
+      setUsers(u.users)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal memuat data')
+    }
+  }
+
+  useEffect(() => { void loadTasks() }, [])
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newOwner.trim() || !newTask.trim()) return
+    setSaving(true)
+    setError(null)
+    try {
+      await api.post('/playground/tasks', {
+        owner: newOwner.trim(),
+        task: newTask.trim(),
+        due: newDue.trim() || null,
+      })
+      setNewTask('')
+      setNewDue('')
+      await loadTasks()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal membuat tugas')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleToggle = async (t: PlaygroundTask) => {
+    try {
+      await api.patch(`/playground/tasks/${t.id}`, { done: !t.done })
+      setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal mengupdate tugas')
+    }
+  }
+
+  const handleEdit = async (id: string) => {
+    if (!editTask.trim()) return
+    try {
+      await api.patch(`/playground/tasks/${id}`, { task: editTask.trim() })
+      setEditId(null)
+      await loadTasks()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan')
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await api.delete(`/playground/tasks/${id}`)
+      setTasks((prev) => prev.filter((x) => x.id !== id))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal menghapus tugas')
+    }
+  }
+
+  const grouped = tasks.reduce(
+    (acc, t) => {
+      const g = acc.find((x) => x.owner === t.owner)
+      if (g) g.items.push(t)
+      else acc.push({ owner: t.owner, items: [t] })
+      return acc
+    },
+    [] as { owner: string; items: PlaygroundTask[] }[]
+  )
+
+  if (!user?.isAdmin) return null
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 md:px-8 pt-8 md:pt-12 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-32">
+      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="grid place-items-center w-10 h-10 rounded-xl bg-navy text-white flex-shrink-0">
+            <ListChecks size={18} weight="duotone" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-navy">Playground Tugas</h1>
+            <p className="text-sm text-ink-muted mt-0.5">Buat tugas manual untuk anggota tim.</p>
+          </div>
+        </div>
+      </motion.div>
+
+      {error && (
+        <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-100 px-3 py-2.5 text-xs text-red-700">
+          <X size={14} weight="fill" />
+          {error}
+          <button onClick={() => setError(null)} className="ml-auto"><X size={14} /></button>
+        </div>
+      )}
+
+      <form onSubmit={handleCreate} className="card p-5 mt-6 space-y-3">
+        <p className="font-semibold text-ink text-[15px]">Tugas baru</p>
+        <div className="grid sm:grid-cols-3 gap-3">
+          <select
+            value={newOwner}
+            onChange={(e) => setNewOwner(e.target.value)}
+            className="input"
+            required
+          >
+            <option value="">Pilih pemilik…</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.displayName ?? u.username}>
+                {u.displayName ?? u.username} (@{u.username})
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={newTask}
+            onChange={(e) => setNewTask(e.target.value)}
+            placeholder="Deskripsi tugas"
+            className="input sm:col-span-2"
+            required
+            maxLength={400}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            value={newDue}
+            onChange={(e) => setNewDue(e.target.value)}
+            placeholder="Tenggat (opsional, contoh: besok)"
+            className="input flex-1"
+            maxLength={80}
+          />
+          <button
+            type="submit"
+            disabled={saving || !newOwner.trim() || !newTask.trim()}
+            className="btn-primary text-xs whitespace-nowrap"
+          >
+            <Plus size={14} weight="bold" />
+            Tambah
+          </button>
+        </div>
+      </form>
+
+      <div className="mt-8 space-y-4">
+        {grouped.length === 0 ? (
+          <div className="card p-12 text-center">
+            <ListChecks weight="duotone" size={40} className="mx-auto text-slate-300" />
+            <p className="mt-3 text-sm text-ink-muted">Belum ada tugas di playground.</p>
+          </div>
+        ) : (
+          grouped.map((g) => (
+            <motion.section
+              key={g.owner}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card p-4 sm:p-5"
+            >
+              <h2 className="font-semibold text-[15px] text-navy mb-3">{g.owner}</h2>
+              <ul className="divide-y divide-slate-100">
+                {g.items.map((t) => (
+                  <li key={t.id} className="flex items-start gap-3 py-2.5 group">
+                    <button
+                      onClick={() => handleToggle(t)}
+                      className={`mt-0.5 grid place-items-center w-5 h-5 rounded-md border flex-shrink-0 transition ${
+                        t.done
+                          ? 'bg-navy border-navy text-white'
+                          : 'border-slate-300 text-transparent hover:border-brand'
+                      }`}
+                      aria-label={t.done ? 'Tandai belum selesai' : 'Tandai selesai'}
+                    >
+                      <Check size={12} weight="bold" />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      {editId === t.id ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={editTask}
+                            onChange={(e) => setEditTask(e.target.value)}
+                            className="input flex-1 text-sm !py-1.5"
+                            autoFocus
+                            maxLength={400}
+                          />
+                          <button
+                            onClick={() => handleEdit(t.id)}
+                            className="grid place-items-center w-7 h-7 rounded-md bg-navy text-white flex-shrink-0"
+                          >
+                            <CheckCircle size={14} weight="fill" />
+                          </button>
+                          <button
+                            onClick={() => setEditId(null)}
+                            className="grid place-items-center w-7 h-7 rounded-md text-slate-400 hover:bg-slate-100"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <p className={`text-sm leading-relaxed ${t.done ? 'line-through text-slate-400' : 'text-navy'}`}>
+                          {t.task}
+                        </p>
+                      )}
+                      {t.due && !t.done && (
+                        <span className="text-[11px] text-ink-muted mt-1 inline-block">
+                          Tenggat: {t.due}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      {editId !== t.id && (
+                        <button
+                          onClick={() => { setEditId(t.id); setEditTask(t.task) }}
+                          className="grid place-items-center w-7 h-7 rounded-md text-slate-400 hover:text-navy hover:bg-slate-100"
+                          aria-label="Edit"
+                        >
+                          <PencilSimple size={13} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDelete(t.id)}
+                        className="grid place-items-center w-7 h-7 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50"
+                        aria-label="Hapus"
+                      >
+                        <Trash size={13} />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </motion.section>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}

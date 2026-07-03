@@ -1,0 +1,1 @@
+ALTER TABLE "action_items" ALTER COLUMN "job_id" DROP NOT NULL;

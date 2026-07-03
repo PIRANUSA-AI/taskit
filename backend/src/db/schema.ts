@@ -135,7 +135,6 @@ export const actionItems = pgTable(
   {
     id: text('id').primaryKey(),
     jobId: text('job_id')
-      .notNull()
       .references(() => jobs.id, { onDelete: 'cascade' }),
     owner: text('owner').notNull(),
     // Optional link to a real user once the owner label has been resolved

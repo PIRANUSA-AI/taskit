@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, ArrowSquareOut, Plus } from '@phosphor-icons/react'
 
-const DISMISSED_KEY = 'alto-install-dismissed'
+const DISMISSED_KEY = 'piranusa-install-dismissed'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>
@@ -65,7 +65,7 @@ export function InstallBanner() {
           transition={{ type: 'spring', stiffness: 400, damping: 32 }}
           className="fixed top-0 inset-x-0 z-50 px-4 pt-3 pb-2 md:top-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-auto"
         >
-          <div className="flex items-center gap-3 rounded-2xl bg-ink text-white shadow-xl px-4 py-3 md:min-w-[320px]">
+          <div className="flex items-center gap-3 rounded-2xl bg-navy text-white shadow-xl px-4 py-3 md:min-w-[320px]">
             <div className="w-9 h-9 rounded-xl bg-white/10 grid place-items-center flex-shrink-0">
               <span className="text-sm font-bold">A</span>
             </div>
@@ -79,7 +79,7 @@ export function InstallBanner() {
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-semibold">Install ALTO</p>
+                  <p className="text-sm font-semibold">Install PIRANUSA</p>
                   <p className="text-xs text-white/60 mt-0.5">Akses lebih cepat dari layar utama</p>
                 </>
               )}
@@ -87,7 +87,7 @@ export function InstallBanner() {
             {!showIOS && (
               <button
                 onClick={install}
-                className="flex items-center gap-1.5 bg-white text-ink rounded-full px-3 py-1.5 text-xs font-semibold flex-shrink-0 hover:bg-zinc-100 transition-colors"
+                className="flex items-center gap-1.5 bg-white text-navy rounded-full px-3 py-1.5 text-xs font-semibold flex-shrink-0 hover:bg-slate-100 transition-colors"
               >
                 <Plus size={12} weight="bold" />
                 Install

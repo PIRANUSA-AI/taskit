@@ -11,7 +11,7 @@ shareRouter.get('/:token', async (c) => {
 
   if (!job) {
     return c.html(renderPage({
-      title: 'Link bagikan tidak ditemukan - ALTO',
+      title: 'Link bagikan tidak ditemukan - PIRANUSA',
       heading: 'Link bagikan tidak ditemukan',
       body: '<p>Link ini tidak valid atau sudah tidak tersedia.</p>',
       robots: 'noindex',
@@ -19,7 +19,7 @@ shareRouter.get('/:token', async (c) => {
   }
 
   const transcript = job.transcript as TranscriptPayload | null
-  const title = `${job.filename} - ALTO Transcript`
+  const title = `${job.filename} - PIRANUSA Transcript`
 
   if (job.status !== 'completed' || !transcript) {
     return c.html(renderPage({
@@ -132,7 +132,7 @@ function renderPage(args: {
   description?: string
   robots?: string
 }): string {
-  const description = args.description ?? 'ALTO public transcript'
+  const description = args.description ?? 'PIRANUSA public transcript'
   return `<!doctype html>
 <html lang="id">
   <head>
@@ -143,30 +143,30 @@ function renderPage(args: {
     <title>${escapeHtml(args.title)}</title>
     <style>
       :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      body { margin: 0; background: #fafafa; color: #18181b; line-height: 1.65; }
+      body { margin: 0; background: #F8FAFC; color: #0F172A; line-height: 1.65; }
       main { max-width: 820px; margin: 0 auto; padding: 40px 20px 72px; }
-      header { border-bottom: 1px solid #e4e4e7; background: #fff; }
-      header div { max-width: 820px; margin: 0 auto; padding: 18px 20px; font-weight: 700; letter-spacing: 0.02em; }
-      h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.1; margin: 0 0 24px; }
-      h2 { margin-top: 36px; padding-top: 18px; border-top: 1px solid #e4e4e7; font-size: 18px; }
+      header { border-bottom: 1px solid #E2E8F0; background: #1E1B4B; color: #fff; }
+      header div { max-width: 820px; margin: 0 auto; padding: 18px 20px; font-weight: 700; letter-spacing: 0.04em; }
+      h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.1; margin: 0 0 24px; color: #1E1B4B; }
+      h2 { margin-top: 36px; padding-top: 18px; border-top: 1px solid #E2E8F0; font-size: 18px; color: #1E1B4B; }
       dl { display: grid; grid-template-columns: 160px 1fr; gap: 8px 16px; }
-      dt { color: #71717a; }
+      dt { color: #64748B; }
       dd { margin: 0; }
-      article { padding: 14px 0; border-bottom: 1px solid #ececee; }
-      .meta { color: #71717a; font-size: 13px; margin-bottom: 4px; }
-      .owner-group { margin: 14px 0; padding: 14px 18px; background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; }
-      .owner-group h3 { margin: 0 0 10px; font-size: 15px; color: #4f46e5; }
+      article { padding: 14px 0; border-bottom: 1px solid #E2E8F0; }
+      .meta { color: #64748B; font-size: 13px; margin-bottom: 4px; }
+      .owner-group { margin: 14px 0; padding: 14px 18px; background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; }
+      .owner-group h3 { margin: 0 0 10px; font-size: 15px; color: #4F46E5; }
       .owner-group ul { list-style: none; padding: 0; margin: 0; }
       .owner-group li { display: flex; gap: 8px; padding: 5px 0; font-size: 14px; }
-      .owner-group .box { font-size: 14px; line-height: 1.4; color: #71717a; }
-      .owner-group em { color: #71717a; font-style: normal; font-size: 12px; }
+      .owner-group .box { font-size: 14px; line-height: 1.4; color: #64748B; }
+      .owner-group em { color: #64748B; font-style: normal; font-size: 12px; }
       .owner-group .hint { color: #d97706; font-size: 12px; }
-      pre { white-space: pre-wrap; word-break: break-word; background: #fff; border: 1px solid #e4e4e7; border-radius: 8px; padding: 16px; }
+      pre { white-space: pre-wrap; word-break: break-word; background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; }
       a { color: inherit; }
     </style>
   </head>
   <body>
-    <header><div>ALTO Public Transcript</div></header>
+    <header><div>PIRANUSA Public Transcript</div></header>
     <main>
       <h1>${escapeHtml(args.heading)}</h1>
       ${args.body}

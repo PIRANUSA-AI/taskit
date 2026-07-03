@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Check, ShareNetwork, Trash, WarningCircle, XCircle } from '@phosphor-icons/react'
+import { ArrowLeft, Check, Play, Pause, ShareNetwork, Trash, WarningCircle, XCircle } from '@phosphor-icons/react'
 import { ApiError, api, type ActionItem, type JobDetail, type ShareJobResponse } from '../lib/api'
 import { TranscriptViewer } from '../components/TranscriptViewer'
+import { ActionItemsPanel } from '../components/ActionItemsPanel'
+import { AudioPlayer } from '../components/AudioPlayer'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { TitleScrambler } from '../components/TitleScrambler'
 import { formatBytes, formatDuration, formatRelativeTime } from '../lib/format'
@@ -17,6 +19,17 @@ export default function Job() {
   const [deleting, setDeleting] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [shared, setShared] = useState(false)
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [audioLoading, setAudioLoading] = useState(false)
+
+  useEffect(() => {
+    if (!id || initial?.status !== 'completed') return
+    setAudioLoading(true)
+    api.get<{ url: string }>(`/jobs/${id}/audio`)
+      .then((r) => setAudioUrl(r.url))
+      .catch(() => {})
+      .finally(() => setAudioLoading(false))
+  }, [id, initial?.status])
 
   useEffect(() => {
     if (!id) return
@@ -80,7 +93,7 @@ export default function Job() {
       if (navigator.share) {
         await navigator.share({
           title: job.filename,
-          text: 'Transkrip ALTO',
+          text: 'Transkrip PIRANUSA',
           url: shareUrl,
         })
       } else {
@@ -100,7 +113,7 @@ export default function Job() {
 
   if (error) {
     return (
-      <div className="min-h-[100dvh] grid place-items-center p-6 bg-white">
+      <div className="min-h-[100dvh] grid place-items-center p-6 bg-paper aurora">
         <div className="text-center max-w-sm">
           <WarningCircle weight="duotone" size={48} className="mx-auto text-red-500" />
           <p className="mt-3 font-medium">{error}</p>
@@ -118,8 +131,8 @@ export default function Job() {
   const isRunning = job.status === 'uploading' || job.status === 'queued' || job.status === 'transcribing' || job.status === 'pending'
 
   return (
-    <div className="mx-auto max-w-3xl px-4 md:px-8 pt-6 pb-24 md:pb-12">
-      <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-ink mb-4">
+    <div className="mx-auto w-full max-w-7xl px-4 lg:px-8 pt-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-12">
+      <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-navy mb-4">
         <ArrowLeft size={14} />
         Semua transkrip
       </Link>
@@ -140,7 +153,7 @@ export default function Job() {
                 to={job.status === 'completed' ? job.title : null}
               />
             </h1>
-            <p className="mt-2 text-xs text-zinc-500 tabular-nums">
+            <p className="mt-2 text-xs text-ink-muted tabular">
               {[
                 formatRelativeTime(job.createdAt),
                 job.durationSec ? formatDuration(job.durationSec) : null,
@@ -148,14 +161,14 @@ export default function Job() {
                 job.transcript?.speakerCount ? `${job.transcript.speakerCount} pembicara` : null,
               ]
                 .filter(Boolean)
-                .join(' · ')}
+                .join(' | ')}
             </p>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={handleShare}
               disabled={sharing}
-              className="grid place-items-center w-9 h-9 rounded-lg text-zinc-500 hover:text-ink hover:bg-zinc-100 disabled:opacity-40"
+              className="grid place-items-center w-9 h-9 rounded-lg text-ink-muted hover:text-navy hover:bg-slate-100 disabled:opacity-40"
               title={shared ? 'Link disalin' : 'Bagikan'}
             >
               {shared ? <Check size={18} weight="bold" /> : <ShareNetwork size={18} />}
@@ -165,8 +178,8 @@ export default function Job() {
               disabled={deleting}
               className={`grid place-items-center w-9 h-9 rounded-lg ${
                 isRunning
-                  ? 'text-zinc-400 hover:text-red-600 hover:bg-red-50'
-                  : 'text-zinc-400 hover:text-red-600 hover:bg-red-50'
+                  ? 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                  : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
               } disabled:opacity-40`}
               title={isRunning ? 'Batalkan & hapus' : 'Hapus'}
             >
@@ -178,22 +191,37 @@ export default function Job() {
 
       <div className="mt-8">
         {job.status === 'completed' && job.transcript ? (
-          <TranscriptViewer
-            transcript={job.transcript}
-            filename={job.filename}
-            jobId={job.id}
-            actionItems={job.actionItems}
-            speakerNames={job.speakerNames}
-            onActionItemsChange={updateActionItems}
-            onSpeakerRename={renameSpeaker}
-          />
+          <div className="lg:grid lg:grid-cols-[1fr_380px] xl:grid-cols-[1fr_420px] lg:gap-8">
+            <div className="min-w-0">
+              {audioUrl && <AudioPlayer src={audioUrl} mimeType={job.mimeType ?? undefined} />}
+              <TranscriptViewer
+                transcript={job.transcript}
+                filename={job.filename}
+                jobId={job.id}
+                speakerNames={job.speakerNames}
+                onActionItemsChange={updateActionItems}
+                onSpeakerRename={renameSpeaker}
+              />
+            </div>
+            <div className="mt-6 lg:mt-0 lg:block space-y-4">
+              <div className="lg:sticky lg:top-20">
+                <ActionItemsPanel
+                  jobId={job.id}
+                  actionItems={job.actionItems}
+                  speakerNames={job.speakerNames}
+                  onChange={updateActionItems}
+                  onSpeakerRename={renameSpeaker}
+                />
+              </div>
+            </div>
+          </div>
         ) : job.status === 'failed' || job.status === 'cancelled' ? (
           <div className="card p-8 text-center">
             <WarningCircle weight="duotone" size={48} className="mx-auto text-red-500" />
             <h2 className="mt-4 text-lg font-semibold">
               {job.status === 'cancelled' ? 'Transkrip dibatalkan' : 'Transkrip gagal'}
             </h2>
-            <p className="mt-2 text-sm text-zinc-600 max-w-md mx-auto break-words">
+            <p className="mt-2 text-sm text-ink-muted max-w-md mx-auto break-words">
               {job.status === 'cancelled'
                 ? 'Job ini dibatalkan dan kredit estimasi dikembalikan.'
                 : job.error || 'Terjadi kesalahan tak dikenal.'}
@@ -218,7 +246,7 @@ export default function Job() {
                 ))}
               </div>
               <p className="text-sm text-amber-800">
-                ALTO sedang mendengarkan... ({job.transcript.segments.length} segmen sejauh ini)
+                PIRANUSA sedang mendengarkan... ({job.transcript.segments.length} segmen sejauh ini)
               </p>
               <button
                 onClick={() => handleDelete()}
@@ -237,7 +265,7 @@ export default function Job() {
               {[0, 1, 2, 3, 4].map((i) => (
                 <span
                   key={i}
-                  className="w-1.5 bg-ink rounded-full animate-pulse-ring"
+                  className="w-1.5 bg-navy rounded-full animate-pulse-ring"
                   style={{
                     animationDelay: `${i * 120}ms`,
                     height: `${20 + (i % 3) * 12}px`,
@@ -245,13 +273,13 @@ export default function Job() {
                 />
               ))}
             </div>
-            <p className="text-sm text-zinc-600">
-              {job.status === 'queued' ? 'Menunggu worker transkrip...' : job.status === 'transcribing' ? 'ALTO sedang mendengarkan...' : 'Memproses...'}
+            <p className="text-sm text-ink-muted">
+              {job.status === 'queued' ? 'Menunggu worker transkrip...' : job.status === 'transcribing' ? 'PIRANUSA sedang mendengarkan...' : 'Memproses...'}
             </p>
             <button
               onClick={() => handleDelete()}
               disabled={deleting}
-              className="mt-6 inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-red-600 px-3 py-1.5 rounded-full hover:bg-red-50"
+              className="mt-6 inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-red-600 px-3 py-1.5 rounded-full hover:bg-red-50"
             >
               <XCircle size={14} />
               Batalkan

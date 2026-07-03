@@ -79,26 +79,26 @@ export function UploadZone({ onStart, disabled }: Props) {
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
           className={`relative rounded-2xl border-2 border-dashed transition-colors ${
-            dragging ? 'border-ink bg-zinc-50' : 'border-zinc-200 bg-zinc-50/50'
+            dragging ? 'border-navy bg-paper' : 'border-slate-200 bg-paper/70'
           } p-8 sm:p-12 text-center`}
         >
-          <div className="grid place-items-center w-14 h-14 rounded-2xl bg-white border border-zinc-200 mx-auto mb-5 shadow-sm">
-            <UploadSimple weight="bold" size={22} className="text-ink" />
+          <div className="grid place-items-center w-14 h-14 rounded-2xl bg-white border border-slate-200 mx-auto mb-5 shadow-sm">
+            <UploadSimple weight="bold" size={22} className="text-navy" />
           </div>
 
           <h3 className="text-lg font-semibold tracking-tight">
             Drop file audio rapat di sini
           </h3>
-          <p className="mt-1.5 text-sm text-zinc-500 max-w-sm mx-auto leading-relaxed">
+          <p className="mt-1.5 text-sm text-ink-muted max-w-sm mx-auto leading-relaxed">
             <span className="hidden sm:inline">Atau </span>
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="underline underline-offset-4 decoration-zinc-400 hover:decoration-ink text-ink font-medium"
+              className="underline underline-offset-4 decoration-slate-400 hover:decoration-navy text-navy font-medium"
             >
               pilih dari perangkat
             </button>
-            . Max {MAX_UPLOAD_MB} MB · {ACCEPT_EXT.map((e) => e.slice(1)).join(' · ')}
+            . Max {MAX_UPLOAD_MB} MB | {ACCEPT_EXT.map((e) => e.slice(1)).join(' | ')}
           </p>
 
           <button
@@ -127,16 +127,16 @@ export function UploadZone({ onStart, disabled }: Props) {
               key={file.name}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-50 border border-zinc-200"
+              className="flex items-center gap-4 p-4 rounded-2xl bg-paper border border-slate-200"
             >
-              <div className="grid place-items-center w-12 h-12 rounded-xl bg-white border border-zinc-200 flex-shrink-0">
-                <MusicNote weight="duotone" size={22} className="text-ink" />
+              <div className="grid place-items-center w-12 h-12 rounded-xl bg-white border border-slate-200 flex-shrink-0">
+                <MusicNote weight="duotone" size={22} className="text-navy" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate" title={file.name}>
                   {file.name}
                 </p>
-                <p className="text-xs text-zinc-500 mt-0.5 tabular-nums">
+                <p className="text-xs text-ink-muted mt-0.5 tabular-nums">
                   {formatBytes(file.size)} · {file.type || 'audio'}
                 </p>
               </div>
@@ -146,7 +146,7 @@ export function UploadZone({ onStart, disabled }: Props) {
                   setFile(null)
                   if (inputRef.current) inputRef.current.value = ''
                 }}
-                className="grid place-items-center w-9 h-9 rounded-lg hover:bg-zinc-200 text-zinc-500"
+                className="grid place-items-center w-9 h-9 rounded-lg hover:bg-slate-200 text-ink-muted"
                 aria-label="Hapus file"
               >
                 <X size={18} />
@@ -159,7 +159,7 @@ export function UploadZone({ onStart, disabled }: Props) {
             <div className="relative">
               <Globe
                 size={18}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
               />
               <select
                 value={lang}
@@ -172,7 +172,7 @@ export function UploadZone({ onStart, disabled }: Props) {
               </select>
               <CaretDown
                 size={16}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
               />
             </div>
           </div>

@@ -15,9 +15,11 @@ import { TitleScrambler } from './TitleScrambler'
 
 interface Props {
   refreshKey?: number
+  limit?: number
+  emptyAction?: boolean
 }
 
-export function HistoryList({ refreshKey }: Props) {
+export function HistoryList({ refreshKey, limit, emptyAction = true }: Props) {
   const [jobs, setJobs] = useState<JobSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -25,7 +27,7 @@ export function HistoryList({ refreshKey }: Props) {
   const load = async () => {
     try {
       const data = await api.get<{ jobs: JobSummary[] }>('/jobs')
-      setJobs(data.jobs)
+      setJobs(limit ? data.jobs.slice(0, limit) : data.jobs)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat riwayat')
     }
@@ -33,7 +35,7 @@ export function HistoryList({ refreshKey }: Props) {
 
   useEffect(() => {
     void load()
-  }, [refreshKey])
+  }, [refreshKey, limit])
 
   const handleDelete = async (e: React.MouseEvent, job: JobSummary) => {
     e.preventDefault()
@@ -70,16 +72,18 @@ export function HistoryList({ refreshKey }: Props) {
 
   if (jobs.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-zinc-200 px-6 py-12 text-center">
-        <ClockCounterClockwise weight="duotone" size={28} className="mx-auto text-zinc-400" />
-        <p className="mt-3 text-sm text-zinc-700 font-medium">Belum ada transkrip.</p>
-        <p className="text-xs text-zinc-400 mt-1">Upload audio pertama untuk memulai.</p>
+      <div className="rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center bg-surface">
+        <ClockCounterClockwise weight="duotone" size={32} className="mx-auto text-brand" />
+        <p className="mt-3 text-sm text-ink font-semibold">Belum ada transkrip.</p>
+        {emptyAction && (
+          <p className="text-xs text-ink-muted mt-1">Upload audio pertama untuk memulai.</p>
+        )}
       </div>
     )
   }
 
   return (
-    <ul className="divide-y divide-zinc-200/80 border-t border-b border-zinc-200/80">
+    <ul className="divide-y divide-slate-200/80 border-t border-b border-slate-200/80">
       {jobs.map((job, i) => (
         <motion.li
           key={job.id}
@@ -90,18 +94,18 @@ export function HistoryList({ refreshKey }: Props) {
         >
           <Link
             to={`/job/${job.id}`}
-            className="flex items-center gap-4 py-4 px-1 hover:bg-zinc-50 transition-colors -mx-1 rounded-lg"
+            className="flex items-center gap-4 py-4 px-1 hover:bg-paper transition-colors -mx-1 rounded-lg"
           >
             <StatusBadge status={job.status} />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate" title={job.filename}>
+              <p className="text-sm font-medium truncate text-ink" title={job.filename}>
                 <TitleScrambler
                   from={job.filename}
                   to={job.status === 'completed' ? job.title : null}
                   delay={Math.min(i * 90, 700)}
                 />
               </p>
-              <p className="text-xs text-zinc-500 mt-0.5 truncate tabular-nums">
+              <p className="text-xs text-ink-muted mt-0.5 truncate tabular">
                 {[
                   formatRelativeTime(job.createdAt),
                   job.durationSec ? formatDuration(job.durationSec) : null,
@@ -109,13 +113,13 @@ export function HistoryList({ refreshKey }: Props) {
                   job.speakerCount && job.speakerCount > 0 ? `${job.speakerCount} pembicara` : null,
                 ]
                   .filter(Boolean)
-                  .join(' · ')}
+                  .join(' | ')}
               </p>
             </div>
             <button
               onClick={(e) => handleDelete(e, job)}
               disabled={deletingId === job.id}
-              className="grid place-items-center w-9 h-9 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 disabled:opacity-40"
+              className="grid place-items-center w-9 h-9 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 disabled:opacity-40"
               title={
                 job.status === 'transcribing' || job.status === 'queued' || job.status === 'uploading' || job.status === 'pending'
                   ? 'Batalkan'
@@ -124,7 +128,7 @@ export function HistoryList({ refreshKey }: Props) {
             >
               <Trash size={16} />
             </button>
-            <ArrowRight size={16} className="text-zinc-400 flex-shrink-0" />
+            <ArrowRight size={16} className="text-slate-400 flex-shrink-0" />
           </Link>
         </motion.li>
       ))}
@@ -135,7 +139,7 @@ export function HistoryList({ refreshKey }: Props) {
 function StatusBadge({ status }: { status: JobSummary['status'] }) {
   if (status === 'completed') {
     return (
-      <span className="grid place-items-center w-9 h-9 rounded-xl bg-ink text-white flex-shrink-0">
+      <span className="grid place-items-center w-9 h-9 rounded-xl bg-navy text-white flex-shrink-0">
         <CheckCircle weight="fill" size={18} />
       </span>
     )
@@ -148,7 +152,7 @@ function StatusBadge({ status }: { status: JobSummary['status'] }) {
     )
   }
   return (
-    <span className="grid place-items-center w-9 h-9 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-600 flex-shrink-0">
+    <span className="grid place-items-center w-9 h-9 rounded-xl bg-brand-soft border border-brand/20 text-brand-deep flex-shrink-0">
       <CircleNotch weight="bold" size={18} className="animate-spin" />
     </span>
   )

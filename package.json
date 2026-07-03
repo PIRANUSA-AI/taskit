@@ -1,0 +1,17 @@
+{
+  "name": "ALTO",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Meeting MOM Generator",
+  "scripts": {
+    "dev": "concurrently -n api,worker,web -c blue,magenta,green \"npm --prefix backend run dev\" \"npm --prefix backend run dev:worker\" \"npm --prefix frontend run dev\"",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:worker": "npm --prefix backend run dev:worker",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.3"
+  }
+}

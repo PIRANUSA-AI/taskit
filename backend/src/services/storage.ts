@@ -2,6 +2,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3'
@@ -89,6 +90,18 @@ export async function readObject(key: string): Promise<Buffer> {
   const bytes = await (body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray()
   chunks.push(bytes)
   return Buffer.concat(chunks)
+}
+
+export async function objectExists(key: string): Promise<boolean> {
+  try {
+    await client().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }))
+    return true
+  } catch (err) {
+    const code = (err as { Code?: string; name?: string; $metadata?: { httpStatusCode?: number } }).Code
+    const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
+    if (code === 'NoSuchKey' || code === 'NotFound' || status === 404) return false
+    throw err
+  }
 }
 
 export async function deleteObject(key: string): Promise<void> {

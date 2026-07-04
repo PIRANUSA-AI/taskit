@@ -6,7 +6,7 @@ import { jobs, users, type JobStatus, type TranscriptPayload } from '../db/schem
 import { requireAuth, type AppEnv } from '../middleware/auth.js'
 import { transcribeWithDeepgram } from '../services/deepgram.js'
 import { cacheJobStatus, invalidateUserStats } from '../services/cache.js'
-import { isObjectStorageEnabled, isObjectStorageRequired, writeObjectStream } from '../services/storage.js'
+import { isObjectStorageEnabled, isObjectStorageRequired, objectExists, writeObjectStream } from '../services/storage.js'
 
 export const uploadRouter = new Hono<AppEnv>()
 
@@ -28,6 +28,11 @@ uploadRouter.post('/:jobId/complete', async (c) => {
     return c.json({ error: `Job sudah ${job.status}, tidak bisa di-queue ulang` }, 409)
   }
 
+  const uploaded = await waitForObject(job.storageKey)
+  if (!uploaded) {
+    return c.json({ error: 'File belum ditemukan di object storage. Upload belum selesai atau gagal.' }, 409)
+  }
+
   await db
     .update(jobs)
     .set({
@@ -40,6 +45,14 @@ uploadRouter.post('/:jobId/complete', async (c) => {
   await cacheJobStatus(jobId, { status: 'queued', progress: 20 })
   return c.json({ jobId, status: 'queued' })
 })
+
+async function waitForObject(key: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (await objectExists(key)) return true
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+  return false
+}
 
 uploadRouter.put('/:jobId/storage', async (c) => {
   if (!isObjectStorageEnabled()) {

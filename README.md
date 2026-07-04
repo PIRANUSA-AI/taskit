@@ -3,146 +3,176 @@
 </p>
 
 <p align="center">
-  <strong>Audio to Action Items</strong> |
-  <strong>AI Transcript and Summary</strong> |
-  <strong>Task Assignment</strong> |
-  <strong>Team Collaboration</strong>
+  <strong>Transkrip Rapat</strong> |
+  <strong>Ringkasan AI</strong> |
+  <strong>Daftar Tugas</strong> |
+  <strong>Kolaborasi Tim</strong>
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> .
-  <a href="#architecture">Architecture</a> .
-  <a href="#getting-started">Getting Started</a> .
-  <a href="#deploy">Deploy</a> .
-  <a href="https://github.com/anomalyco/opencode/issues">Report Bug</a>
+  <a href="#tentang-taskit">Tentang</a> .
+  <a href="#fitur-utama">Fitur</a> .
+  <a href="#alur-kerja">Alur Kerja</a> .
+  <a href="#kepatuhan-dan-tanggung-jawab-penggunaan">Kepatuhan</a> .
+  <a href="#penerapan">Penerapan</a> .
+  <a href="#keamanan">Keamanan</a>
 </p>
 
 ---
 
-TASKIT is a meeting intelligence platform built for internal teams at Piranusa. Upload audio recordings and receive accurate transcripts, AI generated summaries, and structured action items assigned to the right people. Every meeting becomes a source of truth for the team.
+## Tentang TASKIT
+
+TASKIT adalah aplikasi internal untuk membantu tim mengubah rekaman rapat menjadi transkrip, ringkasan, dan daftar tindak lanjut yang lebih mudah dikelola. Aplikasi ini dibuat untuk kebutuhan kerja tim: mencatat keputusan, menandai pemilik tugas, mencari isi rapat lama, dan menjaga konteks agar tidak hilang setelah rapat selesai.
+
+TASKIT bukan pengganti notulen resmi, penasihat hukum, atau alat pengambilan keputusan otomatis. Hasil AI harus tetap ditinjau oleh manusia, terutama untuk keputusan yang berdampak pada kontrak, keuangan, ketenagakerjaan, kesehatan, hukum, atau data pribadi.
 
 ---
 
-## Features
+## Fitur Utama
 
-- **AI Transcription** powered by Deepgram Nova 3 with speaker diarization
-- **Smart Summaries** extracted by GLM (Zhipu AI) in Bahasa Indonesia
-- **Action Item Extraction** automatic task detection with owner assignment and confidence scoring
-- **Task Playground** admin interface to manually create and assign tasks
-- **Audio Playback** real time waveform visualization with speed control and keyboard shortcuts
-- **Full Text Search** search across all transcripts with inline snippet preview
-- **Team Dashboard** usage analytics, user management, and credit tracking
-- **Mobile First** responsive PWA with floating navigation
+- **Transkripsi audio** dengan Deepgram, termasuk pemisahan pembicara.
+- **Ringkasan rapat** dalam Bahasa Indonesia menggunakan GLM/Zhipu AI.
+- **Ekstraksi action items**: tugas, penanggung jawab, tenggat, dan tingkat keyakinan.
+- **Manajemen tugas** untuk admin dan anggota tim.
+- **Pencarian teks penuh** di hasil transkrip.
+- **Pemutar audio** dengan visualisasi waveform.
+- **Dashboard tim** untuk riwayat, kredit, dan penggunaan.
+- **PWA mobile-first** agar nyaman dipakai dari desktop maupun ponsel.
 
 ---
 
-## Architecture
+## Arsitektur
 
 ```mermaid
 flowchart LR
-    A([User Upload]) --> B[API Server]
+    A([Pengguna Upload Audio]) --> B[API Backend]
     B --> C[(Supabase Postgres)]
     B --> D[(Supabase Storage)]
     D --> E[Worker]
-    E --> F[Deepgram API]
-    E --> G[GLM Zhipu]
-    F --> H[Transcript]
-    G --> I[Summary]
+    E --> F[Deepgram]
+    E --> G[GLM / Zhipu AI]
+    F --> H[Transkrip]
+    G --> I[Ringkasan]
     G --> J[Action Items]
     H --> K[(Database)]
     I --> K
     J --> K
-    K --> L[Frontend SPA]
-    L --> M[Task View]
-    L --> N[Transcript View]
-    L --> O[Dashboard]
+    K --> L[Frontend]
 ```
 
-### Service Layout
+### Komponen
 
-```mermaid
-flowchart TB
-    subgraph Frontend
-        V[Vite SPA React]
-        P[PWA Shell]
-    end
-    subgraph Backend
-        A[API Server Hono]
-        W[Worker tsx]
-    end
-    subgraph Storage
-        PG[(Postgres Drizzle)]
-        S3[(Supabase Storage S3)]
-    end
-    subgraph AI
-        D[Deepgram Nova 3]
-        G[GLM 4.5 Flash]
-    end
-    V --> A
-    P --> A
-    A --> PG
-    A --> S3
-    W --> S3
-    W --> D
-    W --> G
-    W --> PG
-```
-
-### Data Flow
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant UI as Frontend
-    participant API as API Server
-    participant DB as Postgres
-    participant Store as Supabase Storage
-    participant Worker as Worker Process
-    participant AI as Deepgram + GLM
-
-    User->>UI: Upload Audio
-    UI->>API: POST /jobs
-    API->>DB: Create Job (queued)
-    API->>Store: Upload File
-    API->>UI: Job Created
-    UI->>User: Upload Complete
-
-    Worker->>DB: Poll for queued jobs
-    DB->>Worker: Claim Job
-    Worker->>Store: Download Audio
-    Worker->>AI: Transcribe Audio
-    AI->>Worker: Transcript + Speakers
-    Worker->>AI: Generate Insights
-    AI->>Worker: Summary + Action Items
-    Worker->>DB: Save Results
-    Worker->>DB: Update Status (completed)
-    UI->>DB: Poll Job Status
-    DB->>UI: Completed
-    UI->>User: Show Transcript
-```
+| Bagian | Teknologi |
+|---|---|
+| Frontend | React, Vite, Tailwind CSS, Framer Motion |
+| Backend API | Hono, TypeScript |
+| Worker | TypeScript, proses terpisah di Fly.io |
+| Database | Supabase Postgres, Drizzle ORM |
+| Storage Audio | Supabase Storage, S3-compatible |
+| Transkripsi | Deepgram |
+| Ringkasan AI | GLM / Zhipu AI |
+| Auth | Session cookie |
+| Queue | Polling database, tanpa Redis/message broker |
 
 ---
 
-## Getting Started
+## Alur Kerja
 
-### Prerequisites
+```mermaid
+sequenceDiagram
+    actor User as Pengguna
+    participant UI as Frontend
+    participant API as Backend API
+    participant DB as Supabase Postgres
+    participant Store as Supabase Storage
+    participant Worker as Worker
+    participant AI as Deepgram + GLM
 
-- Node.js 20+
-- Supabase project (Postgres + Storage)
-- Deepgram API key
-- GLM API key (Zhipu AI)
+    User->>UI: Pilih file audio
+    UI->>API: POST /jobs
+    API->>DB: Buat job dan reservasi kredit
+    UI->>API: Upload file audio
+    API->>Store: Simpan audio ke bucket
+    API->>DB: Status queued
+    Worker->>DB: Claim job queued
+    Worker->>Store: Ambil audio
+    Worker->>AI: Transkripsi dan ringkasan
+    AI->>Worker: Hasil transkrip, ringkasan, action items
+    Worker->>DB: Simpan hasil
+    UI->>API: Polling status
+    API->>UI: Tampilkan hasil
+```
 
-### Installation
+Catatan penting: file audio tetap disimpan di Supabase Storage. Dalam konfigurasi produksi saat ini, browser mengirim file ke backend terlebih dahulu, lalu backend meneruskan file ke Supabase Storage. Jalur ini dipilih agar upload tidak bergantung pada CORS direct upload Supabase.
+
+---
+
+## Kepatuhan dan Tanggung Jawab Penggunaan
+
+TASKIT berpotensi memproses data pribadi, suara, isi percakapan, nama, jabatan, tugas, keputusan rapat, dan informasi internal perusahaan. Karena itu, penggunaan aplikasi harus memperhatikan hukum dan etika yang berlaku di Indonesia, terutama:
+
+- **UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi (UU PDP)**.
+- **UU ITE dan perubahannya**, terutama terkait penggunaan sistem elektronik dan distribusi informasi elektronik.
+- **PP No. 71 Tahun 2019 tentang Penyelenggaraan Sistem dan Transaksi Elektronik (PSTE)**.
+- Kebijakan internal perusahaan terkait kerahasiaan, arsip, akses data, dan retensi dokumen.
+
+Panduan praktis penggunaan:
+
+- Rekam rapat hanya jika peserta sudah diberi tahu dengan jelas.
+- Untuk rapat yang memuat data pribadi atau informasi rahasia, pastikan ada dasar pemrosesan yang sah, misalnya persetujuan, kepentingan kontraktual, kewajiban hukum, atau kepentingan sah organisasi.
+- Jangan upload percakapan pribadi, data pelanggan, data kesehatan, data anak, data biometrik, rahasia dagang, atau dokumen sensitif tanpa izin dan kebutuhan yang jelas.
+- Batasi akses hasil transkrip hanya untuk orang yang memang perlu tahu.
+- Tinjau hasil AI sebelum dipakai sebagai keputusan resmi.
+- Hapus data yang tidak lagi diperlukan sesuai kebijakan retensi.
+- Jika ada permintaan koreksi, penghapusan, atau akses data dari subjek data, tangani sesuai prosedur organisasi dan UU PDP.
+
+Dokumen ini bukan nasihat hukum. Untuk penggunaan produksi yang memproses data pelanggan, data karyawan, atau data sensitif, lakukan penilaian internal bersama pihak legal/compliance.
+
+---
+
+## Privasi Data
+
+Data utama yang diproses:
+
+- Akun pengguna: username, display name, status admin, dan session.
+- File audio rapat yang diupload.
+- Metadata job: nama file, ukuran, durasi, bahasa, status pemrosesan.
+- Hasil transkrip, ringkasan, action items, dan label pembicara.
+- Cache operasional seperti status job, statistik pengguna, rate limit login, dan heartbeat worker.
+
+Lokasi penyimpanan:
+
+- **Supabase Postgres** untuk akun, metadata, transkrip, ringkasan, action items, session, dan cache.
+- **Supabase Storage** untuk file audio.
+- **Deepgram** menerima audio untuk transkripsi.
+- **GLM/Zhipu AI** menerima teks/transkrip untuk pembuatan ringkasan dan action items.
+
+Rekomendasi produksi:
+
+- Gunakan origin CORS yang spesifik, bukan wildcard.
+- Gunakan secret manager Fly.io untuk kredensial.
+- Terapkan kebijakan retensi file audio dan hasil transkrip.
+- Hindari menaruh API key di frontend.
+- Batasi akun admin.
+- Audit akses ke data rapat penting.
+
+---
+
+## Menjalankan Lokal
+
+### Prasyarat
+
+- Node.js 20 atau lebih baru.
+- Project Supabase dengan Postgres dan Storage.
+- API key Deepgram.
+- API key GLM/Zhipu AI.
+- Kredensial S3-compatible dari Supabase Storage.
+
+### Instalasi
 
 ```bash
-git clone <repo>
-cd taskit
-
 cp .env.example backend/.env
-# edit backend/.env with your credentials
-
 cp .env.example frontend/.env
-# edit frontend/.env with your VITE_ prefix vars
 
 npm --prefix backend install
 npm --prefix frontend install
@@ -154,84 +184,93 @@ npm --prefix backend run db:seed
 ### Development
 
 ```bash
-# Terminal 1 - API Server
 npm --prefix backend run dev
-
-# Terminal 2 - Worker (requires STORAGE_PROVIDER=s3)
 npm --prefix backend run dev:worker
-
-# Terminal 3 - Frontend
 npm --prefix frontend run dev
 ```
 
+Worker membutuhkan `STORAGE_PROVIDER=s3`. Jika S3/Supabase Storage belum dikonfigurasi, API masih bisa berjalan, tetapi alur transkripsi penuh tidak akan berjalan normal.
+
 ---
 
-## Deploy
+## Penerapan
 
-TASKIT deploys on Fly.io as two process groups:
+Backend berjalan di Fly.io dengan dua process group:
 
-```mermaid
-flowchart LR
-    subgraph Fly.io
-        A[App Process] --> C[(Supabase)]
-        B[Worker Process] --> C
-        A --> D[Supabase Storage]
-        B --> D
-    end
-    subgraph External
-        E[Deepgram]
-        F[GLM Zhipu]
-    end
-    B --> E
-    B --> F
-```
+- `app`: API server.
+- `worker`: pemroses job transkripsi.
+
+Deploy dari folder `backend`:
 
 ```bash
-fly deploy --ha=false
+fly deploy --config fly.toml --app taskit-contrivent
 ```
 
-The release command runs migrations and seed automatically:
+Release command akan menjalankan migrasi dan seed:
 
+```text
+node dist/db/migrate.js && node dist/db/seed.js
 ```
-release_command = "node dist/db/migrate.js && node dist/db/seed.js"
-```
 
----
+Variabel penting:
 
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Backend | Hono, TypeScript, Drizzle ORM |
-| Frontend | React, Vite, Tailwind CSS, Framer Motion |
-| Database | Supabase Postgres (transaction pooler) |
-| Storage | Supabase Storage (S3 compatible) |
-| Transcription | Deepgram Nova 3 |
-| Summary | GLM 4.5 Flash (Zhipu AI) |
-| Task Queue | DB polled (no message broker) |
-| Auth | Session cookies |
-
----
-
-## Environment Variables
-
-Key variables documented in `.env.example`. Critical ones:
-
-```
+```text
+DATABASE_URL
+STORAGE_PROVIDER=s3
+S3_ENDPOINT
+S3_REGION
+S3_BUCKET
+S3_ACCESS_KEY_ID
+S3_SECRET_ACCESS_KEY
+S3_FORCE_PATH_STYLE=false
 DEEPGRAM_API_KEY
 GLM_API_KEY
 GLM_BASE_URL
-DATABASE_URL
-S3_ENDPOINT
-S3_ACCESS_KEY_ID
-S3_SECRET_ACCESS_KEY
-ALLOW_PUBLIC_SIGNUP
+GLM_MODEL
+ALLOWED_ORIGINS
+MAX_UPLOAD_MB
+BROWSER_DIRECT_UPLOAD=false
+DEFAULT_ADMIN_USERNAME
+DEFAULT_ADMIN_PASSWORD
+```
+
+Untuk frontend Vercel, pastikan:
+
+```text
+VITE_API_URL=https://taskit-contrivent.fly.dev
+VITE_MAX_UPLOAD_MB=250
 ```
 
 ---
 
-## License
+## Keamanan
 
-Copyright 2026 Contrivention. All rights reserved.
+Prinsip dasar:
 
-Built with passion by the Piranusa team, Indonesia.
+- Jangan commit `.env`, API key, access token, atau kredensial S3.
+- Gunakan password admin yang kuat.
+- Batasi `ALLOW_PUBLIC_SIGNUP` sesuai kebutuhan.
+- Pastikan `ALLOWED_ORIGINS` hanya berisi domain yang sah.
+- Gunakan HTTPS di production.
+- Monitor log upload, login, dan worker failure.
+- Rotasi secret jika ada indikasi bocor.
+
+Jika menemukan celah keamanan, ikuti panduan di [SECURITY.md](SECURITY.md).
+
+---
+
+## Batasan
+
+- Hasil transkripsi dan ringkasan AI bisa salah, tidak lengkap, atau salah memahami konteks.
+- Speaker diarization tidak selalu akurat.
+- Action items harus ditinjau ulang oleh pemilik rapat.
+- Audio dengan noise tinggi, banyak pembicara, atau bahasa campuran dapat menurunkan kualitas hasil.
+- Keputusan resmi tetap harus berdasarkan verifikasi manusia.
+
+---
+
+## Lisensi
+
+Hak cipta 2026 Contrivention.
+
+Lihat [LICENSE](LICENSE) untuk ketentuan lisensi. Jika aplikasi ini digunakan secara internal atau komersial, pastikan penggunaan data, rekaman, dan hasil transkrip tetap mengikuti kebijakan organisasi serta peraturan yang berlaku di Indonesia.

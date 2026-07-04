@@ -79,10 +79,9 @@ export async function writeObjectStream(args: {
       Key: args.key,
       Body: args.body,
       ContentType: args.mimeType,
-      ContentLength: args.sizeBytes,
     },
-    queueSize: 4,
-    partSize: 5 * 1024 * 1024,
+    queueSize: 2,
+    partSize: 6 * 1024 * 1024,
     leavePartsOnError: false,
   })
   await upload.done()

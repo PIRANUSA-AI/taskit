@@ -220,7 +220,7 @@ async function polishChunk(chunk: TranscriptSegment[]): Promise<TranscriptSegmen
   })
 }
 
-async function polishTranscript(segments: TranscriptSegment[]): Promise<{
+export async function polishTranscript(segments: TranscriptSegment[]): Promise<{
   polished: TranscriptSegment[]
   raw: TranscriptSegment[]
 }> {
@@ -452,6 +452,83 @@ Output JSON: {"title": "...", "summary": "...", "actionItems": [{owner, task, du
   }
 }
 
+// ---------------------------------------------------------------------------
+// Phase 1: Deepgram transcription only (raw audio → words → segments).
+// Runs fast — no GLM calls. Returns raw segments for immediate display.
+// ---------------------------------------------------------------------------
+
+interface TranscribeAudioResult {
+  words: DgWord[]
+  segments: TranscriptSegment[]
+  detectedLanguage: string | undefined
+  durationSec: number
+}
+
+export async function transcribeAudio(args: {
+  buffer: Buffer
+  mimeType: string
+  language: Language
+  onProgress?: (step: string) => void
+}): Promise<TranscribeAudioResult> {
+  const key = dgKey()
+
+  const params = new URLSearchParams({
+    model: DEEPGRAM_MODEL,
+    diarize: 'true',
+    punctuate: 'true',
+    smart_format: 'true',
+    utterances: 'false',
+  })
+
+  if (args.language === 'auto') {
+    params.set('detect_language', 'true')
+  } else {
+    params.set('language', args.language)
+  }
+
+  for (const kw of DEEPGRAM_KEYWORDS) {
+    params.append('keywords', `${kw}:2`)
+  }
+
+  args.onProgress?.('Transcribing audio...')
+  console.log(`Sending ${Math.round(args.buffer.length / 1024 / 1024)}MB to Deepgram (model: ${DEEPGRAM_MODEL}, lang: ${args.language})`)
+
+  const res = await fetch(`${DEEPGRAM_BASE}?${params}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Token ${key}`,
+      'Content-Type': args.mimeType,
+    },
+    body: args.buffer,
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Deepgram transcription failed (${res.status}): ${text}`)
+  }
+
+  const data = (await res.json()) as DgResponse
+  const channel = data.results?.channels?.[0]
+  const words = channel?.alternatives?.[0]?.words ?? []
+  const detectedLanguage = channel?.detected_language
+  console.log(`Deepgram returned ${words.length} words`)
+
+  if (words.length === 0) throw new Error('Deepgram returned empty transcript')
+
+  args.onProgress?.('Processing speaker labels...')
+  const segments = wordsToSegments(words)
+  console.log(`Grouped into ${segments.length} segments`)
+
+  const durationSec = Math.ceil(words[words.length - 1]?.end ?? 0)
+
+  return { words, segments, detectedLanguage, durationSec }
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: GLM polish + summary extraction (runs in background).
+// polishTranscript / generateInsights are reused from below.
+// ---------------------------------------------------------------------------
+
 // Single-shot path for short transcripts.
 async function extractSingle(text: string): Promise<{ summary: string; actionItems: ExtractedActionItem[]; title: string }> {
   const system = `${SYSTEM_BASE}
@@ -484,7 +561,7 @@ Output JSON: {"title": "...", "summary": "...", "actionItems": [{owner, task, du
   }
 }
 
-async function generateInsights(segments: TranscriptSegment[]): Promise<{ title: string; summary: string; actionItems: ExtractedActionItem[] }> {
+export async function generateInsights(segments: TranscriptSegment[]): Promise<{ title: string; summary: string; actionItems: ExtractedActionItem[] }> {
   const lines = buildLines(segments)
   const totalLen = lines.reduce((n, l) => n + l.length + 1, 0)
 
@@ -522,59 +599,8 @@ export async function transcribeWithDeepgram(args: {
   language: Language
   onProgress?: (step: string) => void
 }): Promise<{ payload: TranscriptPayload; durationSec: number; title: string; actionItems: ExtractedActionItem[] }> {
-  const key = dgKey()
+  const { segments, detectedLanguage, durationSec } = await transcribeAudio(args)
 
-  const params = new URLSearchParams({
-    model: DEEPGRAM_MODEL,
-    diarize: 'true',
-    punctuate: 'true',
-    smart_format: 'true',
-    utterances: 'false',
-  })
-
-  if (args.language === 'auto') {
-    params.set('detect_language', 'true')
-  } else {
-    params.set('language', args.language)
-  }
-
-  // Keyword boosting (Opsi C) — tell Deepgram to weight team names/terms so
-  // nova-3 stops hallucinating them.
-  for (const kw of DEEPGRAM_KEYWORDS) {
-    params.append('keywords', `${kw}:2`)
-  }
-
-  args.onProgress?.('Transcribing audio...')
-  console.log(`Sending ${Math.round(args.buffer.length / 1024 / 1024)}MB to Deepgram (model: ${DEEPGRAM_MODEL}, lang: ${args.language})`)
-
-  const res = await fetch(`${DEEPGRAM_BASE}?${params}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Token ${key}`,
-      'Content-Type': args.mimeType,
-    },
-    body: args.buffer,
-  })
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Deepgram transcription failed (${res.status}): ${text}`)
-  }
-
-  const data = (await res.json()) as DgResponse
-  const channel = data.results?.channels?.[0]
-  const words = channel?.alternatives?.[0]?.words ?? []
-  const detectedLanguage = channel?.detected_language
-  console.log(`Deepgram returned ${words.length} words`)
-
-  if (words.length === 0) throw new Error('Deepgram returned empty transcript')
-
-  args.onProgress?.('Processing speaker labels...')
-  const segments = wordsToSegments(words)
-  console.log(`Grouped into ${segments.length} segments`)
-
-  // Opsi A: conservative GLM polish pass. Raw Deepgram output is preserved so
-  // the UI can offer a "raw vs polished" toggle. Failures fall back to raw.
   let finalSegments = segments
   let rawSegments: TranscriptSegment[] | undefined
   let polished = false
@@ -595,9 +621,6 @@ export async function transcribeWithDeepgram(args: {
   const insights = await generateInsights(finalSegments)
 
   const uniqueSpeakers = new Set(finalSegments.map((s) => s.speaker))
-
-  // Actual audio duration from the last word's end timestamp (Deepgram is authoritative)
-  const durationSec = Math.ceil(words[words.length - 1]?.end ?? 0)
 
   return {
     payload: {

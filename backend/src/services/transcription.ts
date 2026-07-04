@@ -1,8 +1,8 @@
 import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '../db/client.js'
-import { actionItems, jobs, users, type JobStatus } from '../db/schema.js'
-import { transcribeWithDeepgram } from './deepgram.js'
+import { actionItems, jobs, users, type JobStatus, type TranscriptPayload, type TranscriptSegment } from '../db/schema.js'
+import { transcribeAudio, polishTranscript, generateInsights } from './deepgram.js'
 import { cacheJobStatus, invalidateUserStats } from './cache.js'
 import { readObject } from './storage.js'
 
@@ -23,7 +23,8 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
     await cacheJobStatus(jobId, { status: 'transcribing', progress: 30 })
     const buffer = await readObject(job.storageKey)
 
-    const { payload: transcript, durationSec: actualDuration, title, actionItems: extractedItems } = await transcribeWithDeepgram({
+    // Phase 1: Deepgram transcription only (fast, no GLM)
+    const { segments, detectedLanguage, durationSec: actualDuration } = await transcribeAudio({
       buffer,
       mimeType: job.mimeType,
       language: job.language as 'id' | 'en' | 'auto',
@@ -47,44 +48,101 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
       return
     }
 
+    const uniqueSpeakers = new Set(segments.map((s) => s.speaker))
+
+    function normalizeLang(lang: string | undefined): 'id' | 'en' | 'mixed' {
+      if (lang === 'id' || lang === 'en') return lang
+      if (lang?.startsWith('id')) return 'id'
+      if (lang?.startsWith('en')) return 'en'
+      return 'mixed'
+    }
+
+    // Save raw transcript immediately so user can see results
+    const rawPayload: TranscriptPayload = {
+      segments,
+      rawSegments: undefined,
+      polished: false,
+      speakerCount: uniqueSpeakers.size,
+      summary: '',
+      language: job.language === 'auto' ? normalizeLang(detectedLanguage) : job.language as 'id' | 'en' | 'mixed',
+    }
+
     await db
       .update(jobs)
       .set({
         status: 'completed' satisfies JobStatus,
-        transcript,
-        title: title || null,
+        transcript: rawPayload,
         durationSec: actualDuration,
         completedAt: new Date(),
         errorMessage: null,
       })
       .where(eq(jobs.id, jobId))
 
-    // Persist AI-extracted action items (per-person tasks). Idempotent: only run
-    // on the very first completion; subsequent runs (e.g. retry) would already
-    // have `status === 'completed'` and be rejected earlier in the flow.
-    if (extractedItems.length > 0) {
-      await db
-        .insert(actionItems)
-        .values(
-          extractedItems.map((it, i) => ({
-            id: nanoid(),
-            jobId,
-            owner: it.owner,
-            task: it.task,
-            due: it.due ?? null,
-            confidence: it.confidence,
-            order: i,
-          }))
-        )
-        .catch((err) => console.warn(`[${jobId}] Failed to persist action items:`, err))
-    }
-
     await reconcileReservedCredits(jobId, job.userId, current.durationSec ?? actualDuration, actualDuration)
+    await cacheJobStatus(jobId, { status: 'completed', progress: 100 })
+    await invalidateUserStats(job.userId)
 
-    await Promise.all([
-      cacheJobStatus(jobId, { status: 'completed', progress: 100 }),
-      invalidateUserStats(job.userId),
-    ])
+    // Phase 2: GLM polish + summary in background
+    void (async () => {
+      try {
+        let polishedSegments: TranscriptSegment[] = segments
+        let rawSegments: TranscriptSegment[] | undefined
+        let polished = false
+
+        if (segments.length > 0) {
+          console.log(`[${jobId}] Background: Refining transcript...`)
+          await cacheJobStatus(jobId, { status: 'completed', progress: 80 })
+          const r = await polishTranscript(segments)
+          polishedSegments = r.polished
+          rawSegments = r.raw
+          polished = true
+          console.log(`[${jobId}] Background: Polish pass done (${rawSegments.length} -> ${polishedSegments.length} segments)`)
+        }
+
+        console.log(`[${jobId}] Background: Generating summary...`)
+        await cacheJobStatus(jobId, { status: 'completed', progress: 90 })
+        const insights = await generateInsights(polishedSegments)
+
+        const updatedSpeakers = new Set(polishedSegments.map((s) => s.speaker))
+
+        await db
+          .update(jobs)
+          .set({
+            transcript: {
+              segments: polishedSegments,
+              rawSegments,
+              polished,
+              speakerCount: updatedSpeakers.size,
+              summary: insights.summary,
+              language: rawPayload.language,
+            },
+            title: insights.title || null,
+          })
+          .where(eq(jobs.id, jobId))
+
+        if (insights.actionItems.length > 0) {
+          await db
+            .insert(actionItems)
+            .values(
+              insights.actionItems.map((it, i) => ({
+                id: nanoid(),
+                jobId,
+                owner: it.owner,
+                task: it.task,
+                due: it.due ?? null,
+                confidence: it.confidence,
+                order: i,
+              }))
+            )
+            .catch((err) => console.warn(`[${jobId}] Failed to persist action items:`, err))
+        }
+
+        await cacheJobStatus(jobId, { status: 'completed', progress: 100 })
+        console.log(`[${jobId}] Background: Polish + summary complete`)
+      } catch (err) {
+        console.error(`[${jobId}] Background polish/summary failed:`, err)
+      }
+    })()
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`[${jobId}] Transcription failed`, err)

@@ -46,7 +46,16 @@ async function tick(): Promise<void> {
 
   console.log(`[${jobId}] Worker ${workerId} claimed job`)
   await cacheJobStatus(jobId, { status: 'transcribing', progress: 30 })
-  await processStoredTranscriptionJob(jobId)
+
+  const heartbeatTimer = setInterval(() => {
+    setWorkerHeartbeat(workerId).catch(() => {})
+  }, 30_000)
+
+  try {
+    await processStoredTranscriptionJob(jobId)
+  } finally {
+    clearInterval(heartbeatTimer)
+  }
 }
 
 async function main() {

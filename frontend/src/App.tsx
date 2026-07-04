@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { useLocation, Route, Routes, Navigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AuthProvider, useAuth } from './hooks/useAuth'
@@ -7,19 +8,20 @@ import { InstallBanner } from './components/InstallBanner'
 import { ToastProvider } from './components/Toast'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { LoadingScreen } from './components/LoadingScreen'
-import Welcome from './pages/Welcome'
-import Login from './pages/Login'
-import Home from './pages/Home'
-import Riwayat from './pages/Riwayat'
-import Tugas from './pages/Tugas'
-import Profil from './pages/Profil'
-import Job from './pages/Job'
-import SharedJob from './pages/SharedJob'
-import MyTasks from './pages/MyTasks'
-import Admin from './pages/Admin'
-import Playground from './pages/Playground'
-import SearchPage from './pages/SearchPage'
-import NotFound from './pages/NotFound'
+
+const Welcome = lazy(() => import('./pages/Welcome'))
+const Login = lazy(() => import('./pages/Login'))
+const Home = lazy(() => import('./pages/Home'))
+const Riwayat = lazy(() => import('./pages/Riwayat'))
+const Tugas = lazy(() => import('./pages/Tugas'))
+const Profil = lazy(() => import('./pages/Profil'))
+const Job = lazy(() => import('./pages/Job'))
+const SharedJob = lazy(() => import('./pages/SharedJob'))
+const MyTasks = lazy(() => import('./pages/MyTasks'))
+const Admin = lazy(() => import('./pages/Admin'))
+const Playground = lazy(() => import('./pages/Playground'))
+const SearchPage = lazy(() => import('./pages/SearchPage'))
+const NotFound = lazy(() => import('./pages/NotFound'))
 
 function RootPage() {
   const { user, loading } = useAuth()
@@ -53,70 +55,72 @@ function AnimatedRoutes() {
         transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
         style={{ minHeight: '100%' }}
       >
-        <Routes location={location}>
-          <Route path="/" element={<RootPage />} />
-          <Route path="/welcome" element={<Welcome />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/share/:token" element={<SharedJob />} />
-          <Route path="/tasks/:token" element={<MyTasks />} />
-          <Route
-            path="/riwayat"
-            element={
-              <ProtectedRoute>
-                <Riwayat />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tugas"
-            element={
-              <ProtectedRoute>
-                <Tugas />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profil"
-            element={
-              <ProtectedRoute>
-                <Profil />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/job/:id"
-            element={
-              <ProtectedRoute>
-                <Job />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute adminOnly>
-                <Admin />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/playground"
-            element={
-              <ProtectedRoute adminOnly>
-                <Playground />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/search"
-            element={
-              <ProtectedRoute>
-                <SearchPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <Suspense fallback={<LoadingScreen />}>
+          <Routes location={location}>
+            <Route path="/" element={<RootPage />} />
+            <Route path="/welcome" element={<Welcome />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/share/:token" element={<SharedJob />} />
+            <Route path="/tasks/:token" element={<MyTasks />} />
+            <Route
+              path="/riwayat"
+              element={
+                <ProtectedRoute>
+                  <Riwayat />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tugas"
+              element={
+                <ProtectedRoute>
+                  <Tugas />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profil"
+              element={
+                <ProtectedRoute>
+                  <Profil />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/job/:id"
+              element={
+                <ProtectedRoute>
+                  <Job />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Admin />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/playground"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Playground />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/search"
+              element={
+                <ProtectedRoute>
+                  <SearchPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
       </motion.div>
     </AnimatePresence>
   )

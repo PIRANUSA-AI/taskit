@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/share/:token",
-      "destination": "https://alto.fly.dev/share/:token"
+      "destination": "https://taskit-contrivent.fly.dev/share/:token"
     },
     {
       "source": "/(.*)",

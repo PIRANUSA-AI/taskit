@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { Readable } from 'node:stream'
 import { and, eq, sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { jobs, users, type JobStatus, type TranscriptPayload } from '../db/schema.js'
@@ -86,12 +85,33 @@ uploadRouter.put('/:jobId/storage', async (c) => {
   await db.update(jobs).set({ status: 'uploading' satisfies JobStatus }).where(eq(jobs.id, jobId))
   await cacheJobStatus(jobId, { status: 'uploading', progress: 10 })
 
+  // Buffer the body first so AWS SDK can retry on S3 failure (streams are not replayable)
+  let buffer: Buffer
+  try {
+    const chunks: Uint8Array[] = []
+    const reader = body.getReader()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+    buffer = Buffer.concat(chunks)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    await db
+      .update(jobs)
+      .set({ status: 'failed' satisfies JobStatus, errorMessage: `Upload gagal: ${msg}` })
+      .where(eq(jobs.id, jobId))
+    await cacheJobStatus(jobId, { status: 'failed', error: msg })
+    return c.json({ error: 'Gagal membaca upload', detail: msg }, 502)
+  }
+
   try {
     await writeObjectStream({
       key: job.storageKey,
       mimeType: job.mimeType,
-      sizeBytes: contentLength,
-      body: Readable.fromWeb(body as never),
+      sizeBytes: buffer.length,
+      body: buffer,
     })
 
     await db
@@ -106,6 +126,7 @@ uploadRouter.put('/:jobId/storage', async (c) => {
     await cacheJobStatus(jobId, { status: 'queued', progress: 20 })
     return c.json({ jobId, status: 'queued' })
   } catch (err) {
+    console.error(`[${jobId}] S3 PutObject failed:`, err)
     const msg = err instanceof Error ? err.message : String(err)
     await Promise.all([
       db

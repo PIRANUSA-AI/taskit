@@ -69,7 +69,7 @@ export async function writeObjectStream(args: {
   key: string
   mimeType: string
   sizeBytes: number
-  body: Readable
+  body: Readable | Uint8Array
 }): Promise<void> {
   await client().send(new PutObjectCommand({
     Bucket: bucket(),

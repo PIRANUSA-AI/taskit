@@ -5,7 +5,6 @@ import type { UploadState } from '../hooks/useUpload'
 import { WaveformBars } from './animations/WaveformBars'
 import { MicTranscribing } from './animations/MicTranscribing'
 import { SuccessCheck } from './animations/SuccessCheck'
-import { LottiePlayer } from './LottiePlayer'
 
 interface Props {
   upload: UploadState
@@ -25,7 +24,7 @@ function derivePhase(
       phase: 'completed',
       progress: 100,
       message: 'Transkrip selesai',
-      detail: `${job.transcript?.segments.length ?? 0} segmen - ${job.transcript?.speakerCount ?? 1} pembicara`,
+      detail: `${job.transcript?.segments.length ?? 0} segmen · ${job.transcript?.speakerCount ?? 1} pembicara`,
     }
   }
 
@@ -45,7 +44,7 @@ function derivePhase(
     return {
       phase: 'uploading',
       progress: upload.progress,
-      message: 'Mengupload audio',
+      message: 'Mengirim audio ke server',
       detail: `${upload.progress}% terkirim`,
     }
   }
@@ -56,14 +55,17 @@ function derivePhase(
     job?.status === 'uploading' ||
     upload.stage === 'queued'
   ) {
+    const segments = job?.transcript?.segments?.length ?? 0
     return {
       phase: 'transcribing',
       progress: job?.progress ?? (job?.status === 'queued' ? 20 : 60),
-      message: job?.status === 'queued' ? 'Masuk antrian' : 'PIRANUSA sedang mendengarkan',
+      message: job?.status === 'queued' ? 'Masuk antrian' : 'TASKIT lagi nulis transkrip',
       detail:
         job?.status === 'queued'
-          ? 'Audio sudah terkirim dan menunggu worker transkrip.'
-          : 'Mengidentifikasi pembicara dan menulis transkrip...',
+          ? 'Audio udah aman, tinggal nunggu giliran diproses.'
+          : segments > 0
+            ? `${segments} segmen sejauh ini`
+            : 'Mengidentifikasi pembicara dan nulis transkrip...',
     }
   }
 
@@ -80,67 +82,78 @@ export function JobStatus({ upload, job, onReset, onViewTranscript }: Props) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-      className="card p-6 sm:p-10 overflow-hidden shadow-sm"
+      className="card p-5 sm:p-8 overflow-hidden shadow-sm"
     >
-      <div className="flex flex-col items-center gap-6 sm:grid sm:grid-cols-[auto_1fr] sm:items-center sm:gap-8">
-        <div className="grid place-items-center w-44 h-44 flex-shrink-0">
+      <div className="flex flex-col sm:flex-row items-center gap-5 sm:gap-8">
+        <div className="grid place-items-center flex-shrink-0">
           {phase === 'uploading' && (
-            <LottiePlayer
-              className="w-44 h-44"
-              fallback={<WaveformBars bars={9} className="w-40 h-24" />}
-            />
+            <motion.div
+              key="uploading"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="grid place-items-center w-24 h-24 rounded-full bg-brand-soft border border-brand/10"
+            >
+              <WaveformBars bars={7} className="w-20 h-12" color="#6366F1" />
+            </motion.div>
           )}
           {phase === 'transcribing' && (
-            <LottiePlayer
-              className="w-44 h-44"
-              fallback={<MicTranscribing size={92} />}
-            />
+            <motion.div
+              key="transcribing"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+            >
+              <MicTranscribing size={112} />
+            </motion.div>
           )}
           {phase === 'completed' && (
-            <LottiePlayer
-              className="w-44 h-44"
-              fallback={<SuccessCheck size={92} />}
-            />
+            <motion.div
+              key="completed"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 16 }}
+            >
+              <SuccessCheck size={88} />
+            </motion.div>
           )}
           {phase === 'failed' && (
-            <div className="grid place-items-center w-24 h-24 rounded-full bg-red-50 border border-red-200">
-              <WarningCircle weight="duotone" size={48} className="text-red-500" />
+            <div className="grid place-items-center w-20 h-20 rounded-full bg-red-50 border border-red-200">
+              <WarningCircle weight="duotone" size={40} className="text-red-500" />
             </div>
           )}
         </div>
 
-        <div className="text-center sm:text-left w-full">
+        <div className="text-center sm:text-left w-full min-w-0">
           <p className="eyebrow">
             {phase === 'uploading' && 'Langkah 1 dari 2'}
             {phase === 'transcribing' && (job?.status === 'queued' ? 'Antrian' : 'Langkah 2 dari 2')}
             {phase === 'completed' && 'Selesai'}
             {phase === 'failed' && 'Gagal'}
           </p>
-          <h2 className="mt-2 text-2xl sm:text-3xl tracking-tightest font-semibold leading-tight">
+          <h2 className="mt-1.5 text-xl sm:text-2xl tracking-tightest font-semibold leading-tight">
             {message}
           </h2>
-          <p className="mt-2 text-sm text-ink-muted max-w-md mx-auto sm:mx-0 leading-relaxed">
+          <p className="mt-1 text-sm text-ink-muted max-w-md mx-auto sm:mx-0 leading-relaxed">
             {detail}
           </p>
 
           {(phase === 'uploading' || phase === 'transcribing') && (
-            <div className="mt-5 max-w-md mx-auto sm:mx-0 w-full">
-              <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
+            <div className="mt-4 max-w-md mx-auto sm:mx-0 w-full">
+              <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
                 <motion.div
-                  className="h-full bg-navy rounded-full"
+                  className="h-full bg-brand rounded-full"
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
                   transition={{ type: 'spring', stiffness: 80, damping: 22 }}
                 />
               </div>
-              <div className="mt-2 flex justify-between text-xs text-ink-muted">
+              <div className="mt-1.5 flex justify-between text-xs text-ink-muted">
                 <span>{phase === 'uploading' ? 'Mengirim' : job?.status === 'queued' ? 'Menunggu' : 'Memproses'}</span>
                 <span className="tabular">{Math.round(progress)}%</span>
               </div>
             </div>
           )}
 
-          <div className="mt-6 flex flex-wrap gap-3 justify-center sm:justify-start">
+          <div className="mt-5 flex flex-wrap gap-3 justify-center sm:justify-start">
             {phase === 'completed' && (
               <>
                 <button onClick={onViewTranscript} className="btn-primary">

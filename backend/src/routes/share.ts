@@ -11,7 +11,7 @@ shareRouter.get('/:token', async (c) => {
 
   if (!job) {
     return c.html(renderPage({
-      title: 'Link bagikan tidak ditemukan - PIRANUSA',
+      title: 'Link bagikan tidak ditemukan - TASKIT',
       heading: 'Link bagikan tidak ditemukan',
       body: '<p>Link ini tidak valid atau sudah tidak tersedia.</p>',
       robots: 'noindex',
@@ -19,7 +19,7 @@ shareRouter.get('/:token', async (c) => {
   }
 
   const transcript = job.transcript as TranscriptPayload | null
-  const title = `${job.filename} - PIRANUSA Transcript`
+  const title = `${job.filename} - TASKIT Transcript`
 
   if (job.status !== 'completed' || !transcript) {
     return c.html(renderPage({
@@ -132,7 +132,7 @@ function renderPage(args: {
   description?: string
   robots?: string
 }): string {
-  const description = args.description ?? 'PIRANUSA public transcript'
+  const description = args.description ?? 'TASKIT public transcript'
   return `<!doctype html>
 <html lang="id">
   <head>
@@ -166,7 +166,7 @@ function renderPage(args: {
     </style>
   </head>
   <body>
-    <header><div>PIRANUSA Public Transcript</div></header>
+    <header><div>TASKIT Public Transcript</div></header>
     <main>
       <h1>${escapeHtml(args.heading)}</h1>
       ${args.body}

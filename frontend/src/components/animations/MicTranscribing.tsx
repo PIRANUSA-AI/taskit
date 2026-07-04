@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion'
 import { memo } from 'react'
-import { Microphone } from '@phosphor-icons/react'
 
 interface Props {
   size?: number
@@ -8,52 +7,73 @@ interface Props {
 }
 
 export const MicTranscribing = memo(function MicTranscribing({
-  size = 88,
+  size = 112,
   className = '',
 }: Props) {
   return (
     <div
       className={`relative grid place-items-center ${className}`}
-      style={{ width: size * 2, height: size * 2 }}
+      style={{ width: size, height: size }}
     >
-      {[0, 0.5, 1].map((delay) => (
-        <motion.span
-          key={delay}
-          className="absolute rounded-full border border-slate-300"
-          style={{ width: size, height: size }}
-          initial={{ scale: 1, opacity: 0.6 }}
-          animate={{ scale: 2.2, opacity: 0 }}
-          transition={{
-            duration: 2.2,
-            repeat: Infinity,
-            ease: 'easeOut',
-            delay,
-          }}
-        />
-      ))}
-
-      <motion.div
-        className="relative grid place-items-center rounded-full bg-navy shadow-lg"
+      {/* Outer pulsing ring */}
+      <motion.span
+        className="absolute rounded-full border-2 border-brand/20"
         style={{ width: size, height: size }}
-        animate={{ scale: [1, 1.04, 1] }}
-        transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+        initial={{ scale: 1, opacity: 0.5 }}
+        animate={{ scale: 1.12, opacity: 0 }}
+        transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+      />
+
+      {/* Soft background glow */}
+      <motion.div
+        className="absolute rounded-full bg-brand-soft"
+        style={{ width: size * 0.85, height: size * 0.85 }}
+        animate={{ scale: [1, 1.03, 1] }}
+        transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* Inner circle with border */}
+      <motion.div
+        className="absolute rounded-full bg-white shadow-sm border border-slate-200"
+        style={{ width: size * 0.78, height: size * 0.78 }}
       >
-        <Microphone weight="fill" size={size * 0.42} className="text-white" />
+        {/* Waveform bars inside */}
+        <div className="absolute inset-0 flex items-center justify-center gap-[3px]">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <motion.span
+              key={i}
+              className="rounded-full"
+              style={{
+                width: 3,
+                background: i % 2 === 0
+                  ? 'linear-gradient(to top, #6366F1, #818CF8)'
+                  : 'linear-gradient(to top, #4F46E5, #6366F1)',
+              }}
+              animate={{
+                height: [10, 24 + ((i * 5) % 18), 14, 32 - ((i * 3) % 14), 10],
+              }}
+              transition={{
+                duration: 1.6 + (i * 0.1),
+                repeat: Infinity,
+                ease: 'easeInOut',
+                delay: i * 0.1,
+              }}
+            />
+          ))}
+        </div>
       </motion.div>
 
-      <div
-        className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-1.5 rounded-full bg-white shadow-md border border-slate-200"
-        aria-label="memproses"
-      >
+      {/* Bottom dots */}
+      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex gap-1">
         {[0, 1, 2].map((i) => (
           <motion.span
             key={i}
-            className="w-1.5 h-1.5 rounded-full bg-navy"
-            animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
+            className="w-1 h-1 rounded-full bg-brand"
+            animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
             transition={{
-              duration: 1.1,
+              duration: 1.2,
               repeat: Infinity,
-              delay: i * 0.18,
+              delay: i * 0.2,
               ease: 'easeInOut',
             }}
           />

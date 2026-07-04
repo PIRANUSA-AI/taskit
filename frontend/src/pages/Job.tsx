@@ -146,7 +146,7 @@ export default function Job() {
       if (navigator.share) {
         await navigator.share({
           title: job.filename,
-          text: 'Transkrip PIRANUSA',
+          text: 'Transkrip TASKIT',
           url: shareUrl,
         })
       } else {
@@ -292,12 +292,12 @@ export default function Job() {
           </div>
         ) : job.status === 'transcribing' && job.transcript?.segments?.length ? (
           <div>
-            <div className="card p-4 mb-4 flex items-center gap-3 bg-amber-50 border-amber-200">
+            <div className="card p-4 mb-4 flex items-center gap-3 bg-brand-soft border border-brand/10">
               <div className="flex items-end gap-0.5 h-5">
                 {[0, 1, 2].map((i) => (
                   <span
                     key={i}
-                    className="w-1 bg-amber-500 rounded-full animate-pulse-ring"
+                    className="w-1 bg-brand rounded-full animate-pulse-ring"
                     style={{
                       animationDelay: `${i * 120}ms`,
                       height: `${10 + (i % 3) * 6}px`,
@@ -305,13 +305,13 @@ export default function Job() {
                   />
                 ))}
               </div>
-              <p className="text-sm text-amber-800">
-                PIRANUSA sedang mendengarkan... ({job.transcript.segments.length} segmen sejauh ini)
+              <p className="text-sm text-brand-deep font-medium">
+                TASKIT lagi nulis transkrip... ({job.transcript.segments.length} segmen sejauh ini)
               </p>
               <button
                 onClick={() => handleDelete()}
                 disabled={deleting}
-                className="ml-auto inline-flex items-center gap-1 text-xs text-amber-700 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50"
+                className="ml-auto inline-flex items-center gap-1 text-xs text-brand-deep hover:text-red-600 px-2 py-1 rounded hover:bg-red-50"
               >
                 <XCircle size={14} />
                 Batalkan
@@ -320,22 +320,31 @@ export default function Job() {
             <TranscriptViewer transcript={job.transcript} filename={job.filename} isPartial />
           </div>
         ) : (
-          <div className="card p-12 text-center">
-            <div className="flex items-end justify-center gap-1 h-10 mb-4">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <span
-                  key={i}
-                  className="w-1.5 bg-navy rounded-full animate-pulse-ring"
-                  style={{
-                    animationDelay: `${i * 120}ms`,
-                    height: `${20 + (i % 3) * 12}px`,
-                  }}
-                />
-              ))}
+          <div className="card p-8 sm:p-10 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex items-end justify-center gap-1 h-10">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <span
+                    key={i}
+                    className="w-1.5 bg-brand rounded-full animate-pulse-ring"
+                    style={{
+                      animationDelay: `${i * 120}ms`,
+                      height: `${18 + (i % 3) * 10}px`,
+                    }}
+                  />
+                ))}
+              </div>
+              <div>
+                <p className="text-sm text-ink font-medium">
+                  {job.status === 'queued' ? 'Masuk antrian' : 'TASKIT lagi nulis transkrip'}
+                </p>
+                <p className="mt-1 text-xs text-ink-muted">
+                  {job.status === 'queued'
+                    ? 'Audio udah aman, sebentar lagi diproses.'
+                    : 'Segmen transkrip bakal muncul otomatis...'}
+                </p>
+              </div>
             </div>
-            <p className="text-sm text-ink-muted">
-              {job.status === 'queued' ? 'Menunggu worker transkrip...' : job.status === 'transcribing' ? 'PIRANUSA sedang mendengarkan...' : 'Memproses...'}
-            </p>
             <button
               onClick={() => handleDelete()}
               disabled={deleting}

@@ -30,7 +30,7 @@ export default {
         ],
       },
       colors: {
-        // PIRANUSA Indigo Banking palette
+        // TASKIT Indigo palette
         navy: {
           DEFAULT: '#1E1B4B',
           soft: '#312E81',

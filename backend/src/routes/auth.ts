@@ -21,7 +21,7 @@ const DEEPGRAM_COST_PER_MIN = 0.0043
 const LOGIN_RATE_LIMIT_MAX = Number(process.env.LOGIN_RATE_LIMIT_MAX ?? 10)
 const LOGIN_RATE_LIMIT_WINDOW_SEC = Number(process.env.LOGIN_RATE_LIMIT_WINDOW_SEC ?? 15 * 60)
 // When "1", allow public self-signup via POST /auth/register (used by the
-// PIRANUSA welcome onboarding flow). Off by default — admin-only account
+// TASKIT welcome onboarding flow). Off by default — admin-only account
 // creation remains the gate for internal team membership.
 const ALLOW_PUBLIC_SIGNUP = process.env.ALLOW_PUBLIC_SIGNUP === '1'
 // Welcome credits granted to a newly self-registered user (seconds).

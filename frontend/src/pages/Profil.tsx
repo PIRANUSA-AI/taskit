@@ -32,8 +32,9 @@ export default function Profil() {
   const [savingName, setSavingName] = useState(false)
 
   useEffect(() => {
+    refresh()
     api.get<UserStats>('/auth/me/stats').then(setStats).catch(() => {})
-  }, [])
+  }, [refresh])
 
   const handleCreateLink = async () => {
     try {

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, ArrowClockwise, Coin, ArrowRight, MicrophoneStage } from '@phosphor-icons/react'
@@ -46,7 +46,7 @@ function usePullToRefresh(onRefresh: () => void) {
 
 export default function Home() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, refresh } = useAuth()
   const { state, start, reset } = useUpload()
   const { job } = useJobPolling(state.jobId)
   const [historyKey, setHistoryKey] = useState(0)
@@ -57,10 +57,21 @@ export default function Home() {
   const handleStart = async (file: File, lang: Lang) => {
     try {
       await start(file, lang)
+      refresh()
     } catch {
       // already in state.error
     }
   }
+
+  const prevStatusRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (job && job.status !== prevStatusRef.current) {
+      prevStatusRef.current = job.status
+      if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+        refresh()
+      }
+    }
+  }, [job, refresh])
 
   const handleReset = () => {
     reset()

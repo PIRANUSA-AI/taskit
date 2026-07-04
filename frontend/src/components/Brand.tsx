@@ -26,15 +26,8 @@ export function BrandMark({ size = 32, rounded, className, animated = false }: B
       }}
     >
       <svg width={size * 0.56} height={size * 0.56} viewBox="0 0 32 32" fill="none" style={{ display: 'block' }}>
-        <rect x="9" y="6" width="5" height="20" rx="2.5" fill="#FFFFFF" />
-        <path
-          d="M14 8.5 H18.5 C22.6 8.5 25.5 11 25.5 14 C25.5 17 22.6 19.5 18.5 19.5 H14"
-          stroke="#FFFFFF"
-          strokeWidth="5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
+        <rect x="6" y="7" width="20" height="4.5" rx="2.25" fill="#FFFFFF" />
+        <rect x="13" y="7" width="6" height="18" rx="3" fill="#FFFFFF" />
       </svg>
     </Wrap>
   )

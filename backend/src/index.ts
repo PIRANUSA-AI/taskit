@@ -152,8 +152,9 @@ async function recoverStuckJobs() {
 }
 
 const port = Number(process.env.PORT ?? 3000)
-console.log(`Backend listening on http://localhost:${port}`)
+const hostname = process.env.HOST ?? '0.0.0.0'
+console.log(`Backend listening on http://${hostname}:${port}`)
 
-serve({ fetch: app.fetch, port })
+serve({ fetch: app.fetch, port, hostname })
 
 recoverStuckJobs()

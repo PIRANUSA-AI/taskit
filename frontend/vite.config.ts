@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icon-192.svg', 'icon-512.svg'],
       manifest: {
-        name: 'PIRANUSA',
-        short_name: 'PIRANUSA',
-        description: 'Sumber kebenaran rapat tim PIRANUSA',
+        name: 'TASKIT',
+        short_name: 'TASKIT',
+        description: 'Sumber kebenaran rapat tim',
         theme_color: '#1E1B4B',
         background_color: '#F8FAFC',
         display: 'standalone',

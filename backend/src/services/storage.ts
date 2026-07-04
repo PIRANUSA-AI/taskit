@@ -6,6 +6,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3'
+import { Upload } from '@aws-sdk/lib-storage'
 import type { Readable } from 'node:stream'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
@@ -71,13 +72,20 @@ export async function writeObjectStream(args: {
   sizeBytes: number
   body: Readable | Uint8Array
 }): Promise<void> {
-  await client().send(new PutObjectCommand({
-    Bucket: bucket(),
-    Key: args.key,
-    Body: args.body,
-    ContentType: args.mimeType,
-    ContentLength: args.sizeBytes,
-  }))
+  const upload = new Upload({
+    client: client(),
+    params: {
+      Bucket: bucket(),
+      Key: args.key,
+      Body: args.body,
+      ContentType: args.mimeType,
+      ContentLength: args.sizeBytes,
+    },
+    queueSize: 4,
+    partSize: 5 * 1024 * 1024,
+    leavePartsOnError: false,
+  })
+  await upload.done()
 }
 
 export async function readObject(key: string): Promise<Buffer> {

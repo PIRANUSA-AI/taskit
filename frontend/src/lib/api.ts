@@ -1,5 +1,5 @@
 // Always relative — dev uses Vite proxy, prod uses Vercel rewrite
-const BASE_URL = ''
+const BASE_URL = 'https://taskit-contrivent.fly.dev'
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public detail?: unknown) {

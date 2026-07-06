@@ -1,8 +1,40 @@
 {
   "rewrites": [
     {
-      "source": "/share/:token",
-      "destination": "https://taskit-contrivent.fly.dev/share/:token"
+      "source": "/auth/:path*",
+      "destination": "https://taskit-contrivent.fly.dev/auth/:path*"
+    },
+    {
+      "source": "/jobs/:path*",
+      "destination": "https://taskit-contrivent.fly.dev/jobs/:path*"
+    },
+    {
+      "source": "/users/:path*",
+      "destination": "https://taskit-contrivent.fly.dev/users/:path*"
+    },
+    {
+      "source": "/upload/:path*",
+      "destination": "https://taskit-contrivent.fly.dev/upload/:path*"
+    },
+    {
+      "source": "/share/:path*",
+      "destination": "https://taskit-contrivent.fly.dev/share/:path*"
+    },
+    {
+      "source": "/tasks/:path*",
+      "destination": "https://taskit-contrivent.fly.dev/tasks/:path*"
+    },
+    {
+      "source": "/playground/:path*",
+      "destination": "https://taskit-contrivent.fly.dev/playground/:path*"
+    },
+    {
+      "source": "/search/:path*",
+      "destination": "https://taskit-contrivent.fly.dev/search/:path*"
+    },
+    {
+      "source": "/health/:path*",
+      "destination": "https://taskit-contrivent.fly.dev/health/:path*"
     },
     {
       "source": "/(.*)",

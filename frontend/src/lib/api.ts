@@ -1,4 +1,7 @@
-const BASE_URL = ((import.meta.env.VITE_API_URL as string) || 'http://localhost:3000').replace(/\/$/, '')
+// Dev: use explicit backend URL. Production (Vercel): relative = same-origin proxy
+const BASE_URL = import.meta.env.DEV
+  ? ((import.meta.env.VITE_API_URL as string) || 'http://localhost:3000').replace(/\/$/, '')
+  : ''
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public detail?: unknown) {

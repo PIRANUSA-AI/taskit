@@ -299,6 +299,7 @@ export default function Playground() {
                 onChange={setAiPrompt}
                 placeholder="Contoh: @Salopu siapkan laporan keuangan !jum'at. @Johan revisi draft kontrak !senin #urgent."
                 maxLength={2000}
+                users={users.map((u) => ({ username: u.username, displayName: u.displayName }))}
               />
               {aiPrompt.length > 0 && (
                 <p className="text-[11px] text-slate-400 mt-1 text-right">{aiPrompt.length}/2000</p>

@@ -2,6 +2,11 @@ import { useRef, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 
+interface UserSuggestion {
+  username: string
+  displayName: string | null
+}
+
 interface Props {
   value: string
   onChange: (val: string) => void
@@ -9,6 +14,7 @@ interface Props {
   maxLength?: number
   className?: string
   minHeight?: string
+  users?: UserSuggestion[]
 }
 
 function getTextOffset(el: HTMLElement): number {
@@ -19,6 +25,32 @@ function getTextOffset(el: HTMLElement): number {
   pre.selectNodeContents(el)
   pre.setEnd(range.startContainer, range.startOffset)
   return pre.toString().length
+}
+
+function getCaretRect(el: HTMLElement): DOMRect | null {
+  const sel = window.getSelection()
+  if (!sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return null
+  const range = sel.getRangeAt(0)
+  if (range.getBoundingClientRect) {
+    const rect = range.getBoundingClientRect()
+    if (rect.width === 0 && rect.height === 0) return null
+    return rect
+  }
+  return null
+}
+
+function findAtPattern(text: string, cursorOffset: number): { start: number; query: string } | null {
+  if (cursorOffset <= 0) return null
+  const before = text.slice(0, cursorOffset)
+  const atIdx = before.lastIndexOf('@')
+  if (atIdx === -1) return null
+  const prefix = atIdx > 0 ? before[atIdx - 1] : ' '
+  if (prefix !== ' ' && prefix !== '\n' && prefix !== ',') return null
+  const after = text.slice(atIdx + 1, cursorOffset)
+  if (/^[\w\s]*$/.test(after) && after.length <= 30) {
+    return { start: atIdx, query: after.trim() }
+  }
+  return null
 }
 
 function restoreOffset(el: HTMLElement, target: number) {
@@ -57,12 +89,25 @@ function highlightText(text: string): string {
   )
 }
 
-export function HighlightedInput({ value, onChange, placeholder, maxLength, className = '', minHeight = '80px' }: Props) {
+export function HighlightedInput({ value, onChange, placeholder, maxLength, className = '', minHeight = '80px', users }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const ignoreNext = useRef(false)
   const navigate = useNavigate()
 
   const [picker, setPicker] = useState<{ due: string; rect: DOMRect } | null>(null)
+  const [mention, setMention] = useState<{ query: string; rect: DOMRect } | null>(null)
+
+  const checkMention = () => {
+    if (!ref.current || !users || users.length === 0) { setMention(null); return }
+    const offset = getTextOffset(ref.current)
+    if (offset < 0) { setMention(null); return }
+    const text = ref.current.textContent ?? ''
+    const pattern = findAtPattern(text, offset)
+    if (!pattern || pattern.query.length === 0) { setMention(null); return }
+    const rect = getCaretRect(ref.current)
+    if (!rect) { setMention(null); return }
+    setMention({ query: pattern.query, rect })
+  }
 
   useEffect(() => {
     if (!ref.current) return
@@ -75,7 +120,8 @@ export function HighlightedInput({ value, onChange, placeholder, maxLength, clas
       if (offset >= 0) restoreOffset(el, offset)
     }
     el.dataset.placeholder = value ? '' : (placeholder ?? '')
-  }, [value, placeholder])
+    checkMention()
+  }, [value, placeholder, users])
 
   const handleInput = () => {
     if (!ref.current) return
@@ -92,6 +138,19 @@ export function HighlightedInput({ value, onChange, placeholder, maxLength, clas
       return
     }
     onChange(text)
+    setTimeout(checkMention, 0)
+  }
+
+  const insertMention = (username: string) => {
+    setMention(null)
+    if (!ref.current) return
+    const text = ref.current.textContent ?? ''
+    const offset = getTextOffset(ref.current)
+    if (offset < 0) return
+    const pattern = findAtPattern(text, offset)
+    if (!pattern) return
+    const next = text.slice(0, pattern.start) + `@${username} ` + text.slice(offset)
+    onChange(next)
   }
 
   const handleClick = (e: React.MouseEvent) => {
@@ -109,6 +168,7 @@ export function HighlightedInput({ value, onChange, placeholder, maxLength, clas
       setPicker({ due: due.getAttribute('data-due') ?? '', rect: due.getBoundingClientRect() })
       return
     }
+    setTimeout(checkMention, 0)
   }
 
   const pickDate = (day: string) => {
@@ -122,6 +182,13 @@ export function HighlightedInput({ value, onChange, placeholder, maxLength, clas
     }
   }
 
+  const filtered = mention && users
+    ? users.filter((u) => {
+        const name = u.displayName ?? u.username
+        return name.toLowerCase().includes(mention.query.toLowerCase())
+      })
+    : []
+
   return (
     <>
       <div className={`relative ${className}`}>
@@ -131,17 +198,74 @@ export function HighlightedInput({ value, onChange, placeholder, maxLength, clas
           suppressContentEditableWarning
           onInput={handleInput}
           onClick={handleClick}
+          onKeyDown={(e) => { if (e.key === 'Escape') setMention(null) }}
           data-placeholder={placeholder ?? ''}
           className="hl-input"
           style={{ minHeight }}
         />
       </div>
+      {mention && filtered.length > 0 && (
+        <MentionDropdown
+          rect={mention.rect}
+          items={filtered}
+          query={mention.query}
+          onSelect={insertMention}
+          onClose={() => setMention(null)}
+        />
+      )}
       {picker && <DatePicker rect={picker.rect} onPick={pickDate} onClose={() => setPicker(null)} />}
     </>
   )
 }
 
 const DAYS = ['besok', 'lusa', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu', 'minggu depan', 'bulan depan', 'hari ini']
+
+function MentionDropdown({ rect, items, query, onSelect, onClose }: {
+  rect: DOMRect; items: UserSuggestion[]; query: string; onSelect: (u: string) => void; onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose() }
+    setTimeout(() => document.addEventListener('click', h), 0)
+    return () => document.removeEventListener('click', h)
+  }, [onClose])
+
+  return createPortal(
+    <div ref={ref} className="fixed z-50 bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 w-56"
+      style={{ top: rect.bottom + 6 + window.scrollY, left: Math.min(rect.left, window.innerWidth - 240) }}
+    >
+      <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wide px-2 py-1.5">Anggota tim</p>
+      {items.length === 0 ? (
+        <p className="text-xs text-ink-muted px-2 py-2">Tidak ditemukan</p>
+      ) : (
+        <div className="max-h-48 overflow-y-auto space-y-0.5">
+          {items.slice(0, 8).map((u) => {
+            const name = u.displayName ?? u.username
+            const idx = name.toLowerCase().indexOf(query.toLowerCase())
+            return (
+              <button key={u.username} onClick={() => onSelect(u.username)}
+                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-violet-50 transition-colors text-left"
+              >
+                <div className="grid place-items-center w-7 h-7 rounded-full bg-violet-100 text-violet-700 text-[11px] font-semibold flex-shrink-0">
+                  {name[0].toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-ink truncate">
+                    {idx >= 0 ? (
+                      <>{name.slice(0, idx)}<strong className="text-violet-700">{name.slice(idx, idx + query.length)}</strong>{name.slice(idx + query.length)}</>
+                    ) : name}
+                  </p>
+                  <p className="text-[11px] text-ink-muted truncate">@{u.username}</p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>,
+    document.body
+  )
+}
 
 function DatePicker({ rect, onPick, onClose }: { rect: DOMRect; onPick: (d: string) => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null)

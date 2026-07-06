@@ -16,6 +16,7 @@ import {
   ListChecks,
   Check,
   ArrowLeft,
+  Plus,
 } from '@phosphor-icons/react'
 import { ApiError, api, type UserStats } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
@@ -42,16 +43,30 @@ export default function Profil() {
   const [displayName, setDisplayName] = useState(user?.displayName ?? user?.username ?? '')
   const [savingName, setSavingName] = useState(false)
   const [userTasks, setUserTasks] = useState<PlaygroundTask[] | null>(null)
+  const [knownUsers, setKnownUsers] = useState<string[]>([])
+  const [userNotFound, setUserNotFound] = useState(false)
+
+  useEffect(() => {
+    api.get<{ users: Array<{ username: string; displayName: string | null }> }>('/playground/users')
+      .then((r) => setKnownUsers(r.users.map((u) => u.username)))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (viewUser && viewUser !== user?.username && viewUser !== user?.displayName) {
+      if (knownUsers.length > 0) {
+        const exists = knownUsers.some((u) => u === viewUser)
+        if (!exists) { setUserNotFound(true); setUserTasks([]); return }
+        setUserNotFound(false)
+      }
       api.get<{ tasks: PlaygroundTask[] }>(`/playground/tasks?owner=${encodeURIComponent(viewUser)}`)
         .then((r) => setUserTasks(r.tasks))
         .catch(() => setUserTasks([]))
     } else {
       setUserTasks(null)
+      setUserNotFound(false)
     }
-  }, [viewUser, user])
+  }, [viewUser, user, knownUsers])
 
   useEffect(() => {
     if (!viewUser) {
@@ -215,7 +230,28 @@ export default function Profil() {
       )}
 
       {/* Tasks of viewed user */}
-      {viewUser && userTasks !== null && (
+      {viewUser && userNotFound && (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <div className="flex items-center gap-2.5 mb-3">
+            <button onClick={() => navigate(-1)} className="btn-soft text-xs !py-1.5 !px-2.5 gap-1.5">
+              <ArrowLeft size={12} /> Kembali
+            </button>
+          </div>
+          <div className="card p-10 text-center">
+            <div className="grid place-items-center w-12 h-12 rounded-2xl bg-red-50 border border-red-100 mx-auto mb-3">
+              <span className="text-red-500 text-xl font-bold">?</span>
+            </div>
+            <p className="text-sm font-semibold text-ink mb-1">User tidak ditemukan</p>
+            <p className="text-xs text-ink-muted mb-4">@{viewUser} belum terdaftar sebagai anggota tim.</p>
+            {user?.isAdmin && (
+              <Link to="/admin" className="btn-primary text-xs gap-1.5">
+                <Plus size={13} weight="bold" /> Buat user baru
+              </Link>
+            )}
+          </div>
+        </motion.div>
+      )}
+      {viewUser && !userNotFound && userTasks !== null && (
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <div className="flex items-center gap-2.5 mb-3">
             <button onClick={() => navigate(-1)} className="btn-soft text-xs !py-1.5 !px-2.5 gap-1.5">

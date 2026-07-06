@@ -204,12 +204,22 @@ export default function Admin() {
 
       {error && <p className="text-sm text-red-600 mb-6">{error}</p>}
 
-      {/* Analytics overview (desktop-dense, mobile-stacked) */}
+      {/* Analytics overview */}
       {overview && (
         <section className="mb-8" aria-label="Analytics">
-          <div className="flex items-center gap-2 mb-4">
-            <ChartLineUp size={14} weight="bold" className="text-brand-deep" />
-            <h2 className="text-sm font-semibold text-navy">Ringkasan tim</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="grid place-items-center w-8 h-8 rounded-lg bg-navy text-white">
+                <ChartLineUp size={15} weight="fill" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-navy">Ringkasan tim</h2>
+                <p className="text-[11px] text-ink-muted">30 hari terakhir</p>
+              </div>
+            </div>
+            <p className="text-[11px] text-ink-muted tabular">
+              <span className="text-navy font-semibold">{overview.completionRate}%</span> sukses
+            </p>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -251,9 +261,12 @@ export default function Admin() {
           {/* Top users + recent failures */}
           <div className="grid md:grid-cols-2 gap-3 mt-3">
             <div className="card p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-4">
-                Pengguna paling aktif
-              </p>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="grid place-items-center w-7 h-7 rounded-lg bg-amber-50 text-amber-700">
+                  <ChartLineUp size={13} weight="fill" />
+                </div>
+                <p className="text-xs font-semibold text-navy">Pengguna paling aktif</p>
+              </div>
               {topUsers && (
                 <BarChart
                   items={topUsers.map((u) => ({
@@ -267,23 +280,37 @@ export default function Admin() {
             </div>
 
             <div className="card p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-4">
-                Kegagalan terbaru
-              </p>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="grid place-items-center w-7 h-7 rounded-lg bg-red-50 text-red-600">
+                  <WarningCircle size={13} weight="fill" />
+                </div>
+                <p className="text-xs font-semibold text-navy">Kegagalan terbaru</p>
+              </div>
               {failures && failures.length === 0 ? (
-                <p className="text-xs text-ink-muted">Tidak ada job gagal. 🎉</p>
+                <div className="flex flex-col items-center py-6 text-center">
+                  <div className="grid place-items-center w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-500 mb-2">
+                    <CheckCircle size={20} weight="fill" />
+                  </div>
+                  <p className="text-sm font-medium text-emerald-700">Semua lancar</p>
+                  <p className="text-xs text-ink-muted mt-0.5">Tidak ada job gagal dalam 7 hari terakhir.</p>
+                </div>
               ) : (
-                <ul className="space-y-2.5">
+                <ul className="space-y-2">
                   {failures?.slice(0, 5).map((f) => (
-                    <li key={f.id} className="flex items-start gap-2.5">
+                    <li key={f.id} className="flex items-start gap-2.5 p-2 -mx-2 rounded-lg hover:bg-red-50/40 transition-colors">
                       <span className="grid place-items-center w-7 h-7 rounded-lg bg-red-50 text-red-600 flex-shrink-0 mt-0.5">
                         <WarningCircle size={13} weight="fill" />
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium text-ink truncate">{f.filename}</p>
-                        <p className="text-[11px] text-ink-muted truncate">
-                          @{f.username} · {formatRelativeTime(f.created_at)}
-                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[11px] text-ink-muted">@{f.username}</span>
+                          <span className="text-slate-300">·</span>
+                          <span className="text-[11px] text-ink-muted">{formatRelativeTime(f.created_at)}</span>
+                        </div>
+                        {f.error_message && (
+                          <p className="text-[11px] text-red-600/70 mt-0.5 line-clamp-1">{f.error_message}</p>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -369,64 +396,75 @@ export default function Admin() {
         ) : users.length === 0 ? (
           <p className="text-sm text-ink-muted px-1">Belum ada user.</p>
         ) : (
-          <ul className="divide-y divide-slate-200/80 border-t border-b border-slate-200/80 bg-surface rounded-xl">
+          <ul className="divide-y divide-slate-200/80 border-t border-b border-slate-200/80 bg-surface rounded-xl overflow-hidden">
             {users.map((u) => (
-              <li key={u.id} className="flex items-center gap-4 py-4 px-3 hover:bg-paper rounded-lg">
+              <li key={u.id} className="flex items-center gap-4 py-3 sm:py-4 px-3 sm:px-5 hover:bg-paper transition-colors group">
                 <div
-                  className={`grid place-items-center w-10 h-10 rounded-xl flex-shrink-0 ${
-                    u.isAdmin ? 'bg-navy text-white' : 'bg-brand-soft border border-brand/20 text-brand-deep'
+                  className={`grid place-items-center w-11 h-11 rounded-xl flex-shrink-0 ${
+                    u.isAdmin ? 'bg-navy text-white shadow-sm' : 'bg-brand-soft border border-brand/20 text-brand-deep'
                   }`}
                 >
-                  {u.isAdmin ? <ShieldStar weight="fill" size={18} /> : <UserIcon size={18} />}
+                  {u.isAdmin ? <ShieldStar weight="fill" size={19} /> : <UserIcon size={19} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate text-ink">
-                    {u.displayName ?? u.username}
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-[15px] text-ink truncate">
+                      {u.displayName ?? u.username}
+                    </p>
                     {u.id === self?.id && (
-                      <span className="ml-2 text-[11px] text-slate-400 font-normal">(kamu)</span>
+                      <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">kamu</span>
                     )}
-                  </p>
-                  <p className="text-[11px] text-ink-muted truncate">
-                    @{u.username} · {u.isAdmin ? 'admin · ' : ''}dibuat {formatRelativeTime(u.createdAt)}
-                  </p>
-                  <p
-                    className={`text-xs mt-0.5 font-medium tabular ${
-                      u.creditSeconds < 300 ? 'text-red-500' : 'text-emerald-600'
-                    }`}
-                  >
-                    <Coin size={11} className="inline mr-0.5 mb-0.5" weight="duotone" />
-                    {formatDuration(u.creditSeconds)} kredit
-                  </p>
+                    {u.isAdmin && (
+                      <span className="text-[10px] font-semibold text-navy bg-navy/10 px-1.5 py-0.5 rounded">admin</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs text-ink-muted">@{u.username}</p>
+                    <span className="text-slate-300">·</span>
+                    <p className="text-xs text-ink-muted">dibuat {formatRelativeTime(u.createdAt)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className={`inline-flex items-center gap-1 text-xs font-semibold tabular px-2 py-0.5 rounded-full ${
+                      u.creditSeconds < 300
+                        ? 'bg-red-50 text-red-600'
+                        : u.creditSeconds < 1800
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-emerald-50 text-emerald-700'
+                    }`}>
+                      <Coin size={11} weight="duotone" />
+                      {formatDuration(u.creditSeconds)}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5 sm:gap-1">
                   <button
                     onClick={() => handleCopyTaskLink(u)}
-                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-brand-soft hover:text-brand-deep text-slate-500"
+                    className="grid place-items-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg hover:bg-brand-soft hover:text-brand-deep text-slate-400 transition-colors"
                     title="Salin link tugas"
                   >
-                    {u.taskShareToken ? <LinkIcon size={16} /> : <Clipboard size={16} />}
+                    {u.taskShareToken ? <LinkIcon size={15} /> : <Clipboard size={15} />}
                   </button>
                   <button
                     onClick={() => handleTopupCredits(u)}
-                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-amber-50 hover:text-amber-600 text-slate-500"
+                    className="grid place-items-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg hover:bg-amber-50 hover:text-amber-600 text-slate-400 transition-colors"
                     title="Topup kredit"
                   >
-                    <Coin size={16} />
+                    <Coin size={15} />
                   </button>
                   <button
                     onClick={() => handleResetPassword(u)}
-                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-slate-100 text-slate-500"
+                    className="grid place-items-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors"
                     title="Reset password"
                   >
-                    <Key size={16} />
+                    <Key size={15} />
                   </button>
                   <button
                     onClick={() => handleDelete(u)}
                     disabled={u.id === self?.id}
-                    className="grid place-items-center w-9 h-9 rounded-lg hover:bg-red-50 hover:text-red-600 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="grid place-items-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg hover:bg-red-50 hover:text-red-600 text-slate-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     title="Hapus user"
                   >
-                    <Trash size={16} />
+                    <Trash size={15} />
                   </button>
                 </div>
               </li>
@@ -462,25 +500,34 @@ function StatCard({
   color: 'navy' | 'brand' | 'emerald' | 'violet'
 }) {
   const colors = {
-    navy: 'bg-navy text-white',
-    brand: 'bg-brand-soft text-brand-deep',
-    emerald: 'bg-emerald-50 text-emerald-600',
-    violet: 'bg-violet-50 text-violet-600',
+    navy: { icon: 'bg-navy text-white', accent: 'bg-navy/5', bar: 'bg-navy/15' },
+    brand: { icon: 'bg-brand-soft text-brand-deep', accent: 'bg-brand/5', bar: 'bg-brand/15' },
+    emerald: { icon: 'bg-emerald-50 text-emerald-600', accent: 'bg-emerald-50', bar: 'bg-emerald-200' },
+    violet: { icon: 'bg-violet-50 text-violet-600', accent: 'bg-violet-50', bar: 'bg-violet-200' },
   }
+  const c = colors[color]
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="card p-4"
+      className={`card p-4 sm:p-5 relative overflow-hidden ${c.accent}/40`}
     >
-      <div className={`grid place-items-center w-9 h-9 rounded-xl ${colors[color]} mb-3`}>
-        <Icon size={16} weight="duotone" />
+      <div className={`absolute top-0 right-0 w-32 h-32 rounded-full -translate-y-1/2 translate-x-1/3 ${c.accent}`} />
+      <div className={`relative grid place-items-center w-10 h-10 rounded-xl ${c.icon} mb-3`}>
+        <Icon size={18} weight="duotone" />
       </div>
-      <p className="text-xl font-semibold text-navy tabular leading-tight">{value}</p>
-      <p className="text-[11px] text-ink-muted mt-1 font-medium">
-        {label}
-        {sub && <span className="block text-[10px] opacity-70">{sub}</span>}
+      <p className="relative text-[28px] sm:text-[32px] font-bold text-navy tabular leading-none tracking-tight">
+        {value}
       </p>
+      <p className="relative text-xs text-ink-muted font-semibold mt-2">
+        {label}
+      </p>
+      {sub && (
+        <p className="relative text-[11px] text-ink-muted/70 mt-0.5 font-medium flex items-center gap-1">
+          <span className={`inline-block w-1.5 h-1.5 rounded-full ${c.bar}`} />
+          {sub}
+        </p>
+      )}
     </motion.div>
   )
 }

@@ -1,4 +1,4 @@
-app = "taskit"
+app = "taskit-contrivent"
 primary_region = "sin"
 
 [build]

@@ -82,36 +82,23 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
     await cacheJobStatus(jobId, { status: 'completed', progress: 100 })
     await invalidateUserStats(job.userId)
 
-    // Phase 2: GLM polish + summary in background
+    // Phase 2: Background processing
     void (async () => {
       try {
-        let polishedSegments: TranscriptSegment[] = segments
-        let rawSegments: TranscriptSegment[] | undefined
-        let polished = false
-
-        if (segments.length > 0) {
-          console.log(`[${jobId}] Background: Refining transcript...`)
-          await cacheJobStatus(jobId, { status: 'completed', progress: 80 })
-          const r = await polishTranscript(segments)
-          polishedSegments = r.polished
-          rawSegments = r.raw
-          polished = true
-          console.log(`[${jobId}] Background: Polish pass done (${rawSegments.length} -> ${polishedSegments.length} segments)`)
-        }
-
+        // Step 1: Generate title, summary, action items FIRST (uses raw segments)
         console.log(`[${jobId}] Background: Generating summary...`)
-        await cacheJobStatus(jobId, { status: 'completed', progress: 90 })
-        const insights = await generateInsights(polishedSegments)
+        await cacheJobStatus(jobId, { status: 'completed', progress: 80 })
+        const insights = await generateInsights(segments)
 
-        const updatedSpeakers = new Set(polishedSegments.map((s) => s.speaker))
+        const updatedSpeakers = new Set(segments.map((s) => s.speaker))
 
         await db
           .update(jobs)
           .set({
             transcript: {
-              segments: polishedSegments,
-              rawSegments,
-              polished,
+              segments,
+              rawSegments: undefined,
+              polished: false,
               speakerCount: updatedSpeakers.size,
               summary: insights.summary,
               language: rawPayload.language,
@@ -137,10 +124,45 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
             .catch((err) => console.warn(`[${jobId}] Failed to persist action items:`, err))
         }
 
+        // Step 2: Polish transcript (refine segment text) in background
+        if (segments.length > 0) {
+          console.log(`[${jobId}] Background: Refining transcript...`)
+          await cacheJobStatus(jobId, { status: 'completed', progress: 90 })
+          try {
+            const r = await polishTranscript(segments)
+            const polishedSegments = r.polished
+            const rawSegments = r.raw
+            console.log(`[${jobId}] Background: Polish pass done (${rawSegments.length} -> ${polishedSegments.length} segments)`)
+
+            const finalSpeakers = new Set(polishedSegments.map((s) => s.speaker))
+
+            await db
+              .update(jobs)
+              .set({
+                transcript: {
+                  segments: polishedSegments,
+                  rawSegments,
+                  polished: true,
+                  speakerCount: finalSpeakers.size,
+                  summary: insights.summary,
+                  language: rawPayload.language,
+                },
+              })
+              .where(eq(jobs.id, jobId))
+          } catch (err) {
+            console.warn(`[${jobId}] Background polish failed, keeping raw:`, err)
+          }
+        }
+
         await cacheJobStatus(jobId, { status: 'completed', progress: 100 })
-        console.log(`[${jobId}] Background: Polish + summary complete`)
+        console.log(`[${jobId}] Background: Processing complete`)
       } catch (err) {
-        console.error(`[${jobId}] Background polish/summary failed:`, err)
+        const bgMsg = err instanceof Error ? err.message : String(err)
+        console.error(`[${jobId}] Background processing failed:`, bgMsg)
+        await db
+          .update(jobs)
+          .set({ errorMessage: `Peringatan: ${bgMsg}` })
+          .where(eq(jobs.id, jobId))
       }
     })()
   } catch (err) {

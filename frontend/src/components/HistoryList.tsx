@@ -28,7 +28,7 @@ export function HistoryList({ refreshKey, limit, emptyAction = true }: Props) {
 
   const load = async () => {
     try {
-      const data = await api.get<{ jobs: JobSummary[] }>('/jobs')
+      const data = await api.get<{ jobs: JobSummary[] }>(limit ? `/jobs?limit=${limit}` : '/jobs')
       setJobs(limit ? data.jobs.slice(0, limit) : data.jobs)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat riwayat')

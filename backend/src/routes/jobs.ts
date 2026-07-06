@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lt, ne, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { db } from '../db/client.js'
@@ -144,6 +144,14 @@ jobsRouter.post('/', async (c) => {
 
 jobsRouter.get('/', async (c) => {
   const user = c.get('user')
+  const cursor = c.req.query('cursor')
+  const limit = Math.min(Math.max(Number(c.req.query('limit') ?? 100), 1), 200)
+
+  const conditions = [eq(jobs.userId, user.id), ne(jobs.status, 'cancelled')]
+  if (cursor) {
+    conditions.push(lt(jobs.createdAt, new Date(cursor)))
+  }
+
   const rows = await db
     .select({
       id: jobs.id,
@@ -158,18 +166,24 @@ jobsRouter.get('/', async (c) => {
       speakerCount: sql<number | null>`(${jobs.transcript}->>'speakerCount')::int`,
     })
     .from(jobs)
-    .where(and(eq(jobs.userId, user.id), ne(jobs.status, 'cancelled')))
+    .where(and(...conditions))
     .orderBy(desc(jobs.createdAt))
-    .limit(100)
+    .limit(limit + 1)
+
+  const hasMore = rows.length > limit
+  const items = hasMore ? rows.slice(0, limit) : rows
+  const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].createdAt.toISOString() : null
 
   return c.json({
-    jobs: rows.map((r) => ({
+    jobs: items.map((r) => ({
       ...r,
       speakerCount:
         r.status === 'completed' && r.speakerCount
           ? r.speakerCount
           : null,
     })),
+    hasMore,
+    nextCursor,
   })
 })
 

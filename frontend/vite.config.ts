@@ -25,16 +25,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/alto\.fly\.dev\//,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 10,
-            },
-          },
-        ],
+        runtimeCaching: [],
       },
     }),
   ],

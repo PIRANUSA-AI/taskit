@@ -1,8 +1,8 @@
 import 'dotenv/config'
 import { setGlobalDispatcher, Agent } from 'undici'
-import { and, asc, eq, isNotNull } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, lt, sql } from 'drizzle-orm'
 import { db } from './db/client.js'
-import { jobs, type JobStatus } from './db/schema.js'
+import { jobs, users, type JobStatus } from './db/schema.js'
 import { cacheJobStatus, setWorkerHeartbeat } from './services/cache.js'
 import { isObjectStorageEnabled } from './services/storage.js'
 import { processStoredTranscriptionJob } from './services/transcription.js'
@@ -39,8 +39,40 @@ async function claimQueuedJob(): Promise<string | null> {
   return claimed?.id ?? null
 }
 
+let lastStuckRecovery = 0
+
+async function recoverStuckTranscribingJobs(): Promise<void> {
+  const now = Date.now()
+  if (now - lastStuckRecovery < 60_000) return
+  lastStuckRecovery = now
+
+  const cutoff = new Date(now - 30 * 60 * 1000)
+  const stuck = await db
+    .update(jobs)
+    .set({
+      status: 'failed' satisfies JobStatus,
+      errorMessage: 'Job timeout: transkripsi tidak selesai dalam 30 menit',
+    })
+    .where(and(eq(jobs.status, 'transcribing'), lt(jobs.startedAt, cutoff)))
+    .returning({ id: jobs.id, userId: jobs.userId, durationSec: jobs.durationSec })
+
+  for (const job of stuck) {
+    if (job.durationSec && job.durationSec > 0) {
+      await db
+        .update(users)
+        .set({ creditSeconds: sql`${users.creditSeconds} + ${job.durationSec}` })
+        .where(eq(users.id, job.userId))
+    }
+  }
+
+  if (stuck.length > 0) {
+    console.log(`Recovered ${stuck.length} stuck transcribing job(s):`, stuck.map((j) => j.id))
+  }
+}
+
 async function tick(): Promise<void> {
   await setWorkerHeartbeat(workerId)
+  await recoverStuckTranscribingJobs()
   const jobId = await claimQueuedJob()
   if (!jobId) return
 

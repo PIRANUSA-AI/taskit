@@ -13,16 +13,40 @@ type Sort = 'newest' | 'oldest' | 'longest'
 export default function Riwayat() {
   const [jobs, setJobs] = useState<JobSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<StatusFilter>('all')
   const [sort, setSort] = useState<Sort>('newest')
 
   useEffect(() => {
     api
-      .get<{ jobs: JobSummary[] }>('/jobs')
-      .then((r) => setJobs(r.jobs))
+      .get<{ jobs: JobSummary[]; hasMore?: boolean; nextCursor?: string | null }>('/jobs')
+      .then((r) => {
+        setJobs(r.jobs)
+        setHasMore(r.hasMore ?? false)
+        setNextCursor(r.nextCursor ?? null)
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Gagal memuat riwayat'))
   }, [])
+
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const r = await api.get<{ jobs: JobSummary[]; hasMore?: boolean; nextCursor?: string | null }>(
+        `/jobs?cursor=${encodeURIComponent(nextCursor)}`
+      )
+      setJobs((prev) => (prev ? [...prev, ...r.jobs] : r.jobs))
+      setHasMore(r.hasMore ?? false)
+      setNextCursor(r.nextCursor ?? null)
+    } catch (err) {
+      console.error('Gagal memuat lebih banyak:', err)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     if (!jobs) return []
@@ -226,6 +250,18 @@ export default function Riwayat() {
               </motion.div>
             ))}
           </div>
+
+          {hasMore && (
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="btn-ghost text-sm font-medium px-6 py-2"
+              >
+                {loadingMore ? 'Memuat…' : 'Muat lebih banyak'}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

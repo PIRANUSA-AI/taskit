@@ -8,6 +8,7 @@ import { InstallBanner } from './components/InstallBanner'
 import { ToastProvider } from './components/Toast'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { LoadingScreen } from './components/LoadingScreen'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 const Welcome = lazy(() => import('./pages/Welcome'))
 const Login = lazy(() => import('./pages/Login'))
@@ -131,7 +132,9 @@ export default function App() {
     <AuthProvider>
       <ToastProvider>
         <InstallBanner />
-        <AppShell />
+        <ErrorBoundary>
+          <AppShell />
+        </ErrorBoundary>
       </ToastProvider>
     </AuthProvider>
   )

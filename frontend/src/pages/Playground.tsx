@@ -21,6 +21,7 @@ import {
 } from '@phosphor-icons/react'
 import { ApiError, api } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
+import { HighlightedInput } from '../components/HighlightedInput'
 
 interface PlaygroundTask {
   id: string
@@ -293,11 +294,10 @@ export default function Playground() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
-              <textarea
+              <HighlightedInput
                 value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
+                onChange={setAiPrompt}
                 placeholder="Contoh: @Salopu siapkan laporan keuangan !jum'at. @Johan revisi draft kontrak !senin #urgent."
-                className="input !rounded-xl !py-3 min-h-[80px] resize-none text-sm leading-relaxed"
                 maxLength={2000}
               />
               {aiPrompt.length > 0 && (

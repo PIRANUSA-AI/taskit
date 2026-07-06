@@ -12,6 +12,7 @@ import {
   CheckCircle,
   Copy,
   PencilSimple,
+  Microphone,
 } from '@phosphor-icons/react'
 import { ApiError, api, type UserStats } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
@@ -140,15 +141,34 @@ export default function Profil() {
           transition={{ delay: 0.08 }}
           className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"
         >
-          <StatTile icon={Coin} label="Sisa kredit" value={formatDuration(stats.creditSeconds)} color="amber" />
-          <StatTile icon={Files} label="Total file" value={String(stats.totalJobs)} color="brand" />
-          <StatTile icon={Clock} label="Total durasi" value={formatDuration(stats.totalDurationSec)} color="emerald" />
+          <StatTile
+            icon={Coin}
+            label="Sisa kredit"
+            value={formatDuration(stats.creditSeconds)}
+            valueSize="2xl"
+            color="amber"
+          />
+          <StatTile
+            icon={Microphone}
+            label="Total transkrip"
+            value={String(stats.totalJobs)}
+            valueSize="2xl"
+            color="brand"
+            badge={stats.totalJobs > 0 ? `${Math.round(stats.latestDurationSec / 60)}m terakhir` : undefined}
+          />
+          <StatTile
+            icon={Clock}
+            label="Total durasi"
+            value={formatDuration(stats.totalDurationSec)}
+            valueSize="2xl"
+            color="emerald"
+          />
           <StatTile
             icon={CurrencyDollar}
-            label="Est. biaya"
+            label="Estimasi biaya"
             value={`Rp${Math.round(stats.estimatedCostUSD * USD_TO_IDR).toLocaleString('id-ID')}`}
+            valueSize="xl"
             color="violet"
-            small
           />
         </motion.div>
       ) : (
@@ -156,7 +176,7 @@ export default function Profil() {
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="card p-4">
               <div className="skeleton h-9 w-9 rounded-xl mb-3" />
-              <div className="skeleton h-6 w-20 rounded mb-1" />
+              <div className="skeleton h-8 w-24 rounded mb-1" />
               <div className="skeleton h-3 w-16 rounded" />
             </div>
           ))}
@@ -226,30 +246,43 @@ function StatTile({
   icon: Icon,
   label,
   value,
+  valueSize,
   color,
-  small,
+  badge,
 }: {
   icon: typeof Coin
   label: string
   value: string
+  valueSize?: 'xl' | '2xl'
   color: 'amber' | 'brand' | 'emerald' | 'violet'
-  small?: boolean
+  badge?: string
 }) {
   const colors = {
-    amber: 'bg-amber-50 text-amber-600',
-    brand: 'bg-brand-soft text-brand-deep',
-    emerald: 'bg-emerald-50 text-emerald-600',
-    violet: 'bg-violet-50 text-violet-600',
+    amber: { bg: 'bg-amber-50', icon: 'text-amber-600', accent: 'bg-amber-100', bar: 'bg-amber-200' },
+    brand: { bg: 'bg-brand-soft', icon: 'text-brand-deep', accent: 'bg-brand/10', bar: 'bg-brand/20' },
+    emerald: { bg: 'bg-emerald-50', icon: 'text-emerald-600', accent: 'bg-emerald-100', bar: 'bg-emerald-200' },
+    violet: { bg: 'bg-violet-50', icon: 'text-violet-600', accent: 'bg-violet-100', bar: 'bg-violet-200' },
   }
+  const c = colors[color]
   return (
-    <div className="card p-4">
-      <div className={`grid place-items-center w-9 h-9 rounded-xl ${colors[color]} mb-3`}>
-        <Icon size={16} weight="duotone" />
+    <div className={`card p-4 sm:p-5 relative overflow-hidden ${c.bg}/40`}>
+      <div className={`absolute top-0 right-0 w-24 h-24 rounded-full -translate-y-1/2 translate-x-1/2 ${c.accent}`} />
+      <div className="relative flex items-start justify-between">
+        <div className={`grid place-items-center w-10 h-10 rounded-xl ${c.bg} ${c.icon}`}>
+          <Icon size={18} weight="duotone" />
+        </div>
       </div>
-      <p className={`font-semibold text-ink tabular ${small ? 'text-sm' : 'text-lg'} leading-tight`}>
+      <p className={`relative mt-4 font-bold text-ink tabular leading-none tracking-tight ${
+        valueSize === '2xl' ? 'text-[28px] md:text-[32px]' : 'text-xl md:text-2xl'
+      }`}>
         {value}
       </p>
-      <p className="text-[11px] text-ink-muted mt-1 font-medium">{label}</p>
+      <p className="relative text-[12px] text-ink-muted font-medium mt-1.5">{label}</p>
+      {badge && (
+        <span className={`relative inline-block mt-2 text-[10px] font-semibold ${c.icon} ${c.accent} px-2 py-0.5 rounded-full`}>
+          {badge}
+        </span>
+      )}
     </div>
   )
 }

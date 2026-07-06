@@ -2,9 +2,33 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, sql, asc, desc } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import OpenAI from 'openai'
 import { db } from '../db/client.js'
 import { actionItems, users } from '../db/schema.js'
 import { requireAdmin, type AppEnv } from '../middleware/auth.js'
+
+const GLM_BASE_URL = process.env.GLM_BASE_URL ?? 'https://api.z.ai/api/paas/v4'
+const GLM_MODEL = process.env.GLM_MODEL ?? 'glm-5.2'
+
+function glmClient(): OpenAI {
+  const k = process.env.GLM_API_KEY
+  if (!k) throw new Error('GLM_API_KEY is required')
+  return new OpenAI({ apiKey: k, baseURL: GLM_BASE_URL })
+}
+
+const GENERATE_SYSTEM = `Kamu asisten yang mengubah deskripsi tugas Bahasa Indonesia menjadi data terstruktur.
+
+Format output HARUS JSON array:
+[{ "owner": "nama orang", "task": "deskripsi tugas", "due": "tenggat atau null" }]
+
+Aturan:
+- Owner diambil dari teks yang diawali @, contoh: "@Eca" → owner: "Eca"
+- Jika tidak ada @, owner default "Unassigned"
+- Due date diambil dari kata kunci seperti: besok, lusa, Jumat, 3 hari lagi, next week
+- Due date dikonversi ke format relative Bahasa Indonesia (contoh: "besok", "Jumat", "3 hari lagi")
+- Jika tidak ada due date, due = null
+- Task harus deskriptif dan spesifik
+- Keluarkan HANYA array JSON, tanpa markdown, tanpa penjelasan`
 
 const createSchema = z.object({
   owner: z.string().min(1).max(80),
@@ -21,6 +45,65 @@ const updateSchema = z.object({
 })
 
 export const playgroundRouter = new Hono<AppEnv>()
+
+const generateSchema = z.object({
+  prompt: z.string().min(3).max(2000),
+})
+
+playgroundRouter.post('/generate', requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => null)
+  const parsed = generateSchema.safeParse(body)
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Input tidak valid' }, 400)
+  }
+
+  let tasks: Array<{ owner: string; task: string; due: string | null }> = []
+  try {
+    const client = glmClient()
+    const res = await client.chat.completions.create({
+      model: GLM_MODEL,
+      messages: [
+        { role: 'system', content: GENERATE_SYSTEM },
+        { role: 'user', content: parsed.data.prompt },
+      ],
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+    })
+
+    const raw = res.choices?.[0]?.message?.content
+    if (!raw) throw new Error('AI tidak memberikan respons')
+
+    const parsedJson = JSON.parse(raw)
+    tasks = Array.isArray(parsedJson) ? parsedJson : parsedJson.tasks ?? []
+    if (!Array.isArray(tasks)) tasks = []
+  } catch (err) {
+    console.error('AI generate failed:', err)
+    return c.json({ error: 'Gagal memproses dengan AI. Coba lagi.' }, 502)
+  }
+
+  if (tasks.length === 0) {
+    return c.json({ error: 'AI tidak dapat mengekstrak tugas dari deskripsi tersebut' }, 400)
+  }
+
+  const created = []
+  for (const t of tasks.slice(0, 20)) {
+    const id = nanoid()
+    await db.insert(actionItems).values({
+      id,
+      jobId: null,
+      owner: t.owner || 'Unassigned',
+      task: t.task,
+      due: t.due ?? null,
+      assigneeId: null,
+      confidence: 0.9,
+      done: false,
+      order: created.length,
+    })
+    created.push({ id, owner: t.owner || 'Unassigned', task: t.task, due: t.due ?? null })
+  }
+
+  return c.json({ tasks: created, count: created.length }, 201)
+})
 
 playgroundRouter.use('*', requireAdmin)
 

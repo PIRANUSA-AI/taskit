@@ -105,9 +105,11 @@ playgroundRouter.post('/generate', requireAdmin, async (c) => {
   return c.json({ tasks: created, count: created.length }, 201)
 })
 
-playgroundRouter.use('*', requireAdmin)
-
 playgroundRouter.get('/tasks', async (c) => {
+  const owner = c.req.query('owner')
+  const conditions = [sql`${actionItems.jobId} IS NULL`]
+  if (owner) conditions.push(eq(actionItems.owner, owner))
+
   const rows = await db
     .select({
       id: actionItems.id,
@@ -122,7 +124,7 @@ playgroundRouter.get('/tasks', async (c) => {
       createdAt: actionItems.createdAt,
     })
     .from(actionItems)
-    .where(sql`${actionItems.jobId} IS NULL`)
+    .where(and(...conditions))
     .orderBy(asc(actionItems.createdAt))
 
   return c.json({ tasks: rows })
@@ -140,6 +142,8 @@ playgroundRouter.get('/users', async (c) => {
 
   return c.json({ users: rows })
 })
+
+playgroundRouter.use('*', requireAdmin)
 
 playgroundRouter.post('/tasks', async (c) => {
   const body = await c.req.json().catch(() => null)

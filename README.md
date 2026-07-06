@@ -234,10 +234,11 @@ DEFAULT_ADMIN_USERNAME
 DEFAULT_ADMIN_PASSWORD
 ```
 
-Untuk frontend Vercel, pastikan:
+Untuk frontend Vercel, biarkan API memakai same-origin rewrites (`/auth`, `/jobs`,
+`/upload`, dst.) agar cookie session tetap first-party:
 
 ```text
-VITE_API_URL=https://taskit-contrivent.fly.dev
+# Jangan set VITE_API_URL di production Vercel.
 VITE_MAX_UPLOAD_MB=250
 ```
 

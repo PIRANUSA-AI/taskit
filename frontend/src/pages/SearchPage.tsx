@@ -24,24 +24,30 @@ interface SearchResult {
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
 
   useEffect(() => {
-    if (query.length < 2) { setResults([]); setSearched(false); return }
+    const timer = setTimeout(() => setDebouncedQuery(query), 300)
+    return () => clearTimeout(timer)
+  }, [query])
+
+  useEffect(() => {
+    if (debouncedQuery.length < 2) { setResults([]); setSearched(false); return }
     setLoading(true)
-    const q = query
+    const q = debouncedQuery
     api.get<{ results: SearchResult[]; query: string }>(`/search?q=${encodeURIComponent(q)}`)
       .then((r) => {
-        if (r.query === query) {
+        if (r.query === debouncedQuery) {
           setResults(r.results)
           setSearched(true)
         }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [query])
+  }, [debouncedQuery])
 
   const highlight = (text: string) => {
     if (!query.trim()) return text
@@ -66,7 +72,7 @@ export default function SearchPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Cari di semua transkrip…"
-          className="input pl-11 text-lg"
+          className="input pl-11 pr-12 text-lg"
           autoFocus
         />
         {loading && (

@@ -1,6 +1,6 @@
 // Dev: use explicit backend URL. Production (Vercel): relative = same-origin proxy
 const BASE_URL = import.meta.env.DEV
-  ? ((import.meta.env.VITE_API_URL as string) || 'http://localhost:3000').replace(/\/$/, '')
+  ? ((import.meta.env.VITE_API_URL as string) || 'https://taskit-contrivent.fly.dev').replace(/\/$/, '')
   : ''
 
 export class ApiError extends Error {

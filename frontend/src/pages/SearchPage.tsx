@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { MagnifyingGlass, ArrowLeft } from '@phosphor-icons/react'
+import { MagnifyingGlass, ArrowLeft, X } from '@phosphor-icons/react'
 import { api } from '../lib/api'
 import { formatRelativeTime } from '../lib/format'
 
@@ -66,20 +66,29 @@ export default function SearchPage() {
       </Link>
 
       <div className="relative mb-6">
-        <MagnifyingGlass size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+        <MagnifyingGlass size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
         <input
-          type="search"
+          type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Cari di semua transkrip…"
-          className="input pl-11 pr-12 text-lg"
+          className="input pl-11 pr-20 text-lg"
           autoFocus
         />
-        {loading && (
-          <div className="absolute right-4 top-1/2 -translate-y-1/2">
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {query && !loading && (
+            <button
+              onClick={() => setQuery('')}
+              className="grid place-items-center w-7 h-7 rounded-md text-slate-400 hover:text-navy hover:bg-slate-100 transition-colors"
+              aria-label="Hapus pencarian"
+            >
+              <X size={14} />
+            </button>
+          )}
+          {loading && (
             <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {searched && (

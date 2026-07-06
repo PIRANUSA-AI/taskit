@@ -72,7 +72,7 @@ export default function SearchPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Cari di semua transkrip…"
-          maxLength={100}
+          maxLength={60}
           className="input pl-11 pr-20 text-lg"
           autoFocus
         />
@@ -90,6 +90,11 @@ export default function SearchPage() {
             <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />
           )}
         </div>
+        {query.length > 50 && (
+          <p className="text-[11px] text-amber-600 mt-1 text-right">
+            {60 - query.length} karakter tersisa
+          </p>
+        )}
       </div>
 
       {searched && (

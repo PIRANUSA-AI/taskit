@@ -304,11 +304,11 @@ export default function Playground() {
                 <p className="text-[11px] text-slate-400 mt-1 text-right">{aiPrompt.length}/2000</p>
               )}
             </div>
-            <div className="flex sm:flex-col gap-2 sm:w-36">
+            <div className="flex sm:flex-col gap-2 shrink-0">
               <button
                 onClick={handleAiGenerate}
                 disabled={aiLoading || aiPrompt.trim().length < 3}
-                className="btn-primary text-sm flex-1 sm:w-full gap-2"
+                className="btn-primary text-sm gap-1.5 self-start"
               >
                 {aiLoading ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

@@ -18,6 +18,7 @@ import {
   Users as UsersIcon,
   WarningCircle,
   ListChecks,
+  CurrencyDollar,
 } from '@phosphor-icons/react'
 import { ApiError, api, type ManagedUser } from '../lib/api'
 import { formatRelativeTime, formatDuration } from '../lib/format'
@@ -54,14 +55,36 @@ interface Failure {
   username: string
 }
 
+interface CostData {
+  totalDurationSec: number; totalJobs: number; estimatedCostUSD: number; range: string
+}
+
+const COST_RANGE_OPTIONS = [
+  { key: 'day', label: 'Hari' },
+  { key: 'week', label: 'Minggu' },
+  { key: 'month', label: 'Bulan' },
+  { key: 'year', label: 'Tahun' },
+  { key: 'all', label: 'Semua' },
+] as const
+
+const TREND_DAYS_OPTIONS = [
+  { key: 7, label: '7 hari' },
+  { key: 30, label: '30 hari' },
+  { key: 90, label: '90 hari' },
+  { key: 365, label: '1 tahun' },
+] as const
+
 export default function Admin() {
   const { user: self } = useAuth()
   const { toast } = useToast()
   const [users, setUsers] = useState<ManagedUser[] | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
   const [trend, setTrend] = useState<TrendPoint[] | null>(null)
+  const [trendDays, setTrendDays] = useState(30)
   const [topUsers, setTopUsers] = useState<TopUser[] | null>(null)
   const [failures, setFailures] = useState<Failure[] | null>(null)
+  const [costData, setCostData] = useState<CostData | null>(null)
+  const [costRange, setCostRange] = useState('all')
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
@@ -73,20 +96,24 @@ export default function Admin() {
   const [flash, setFlash] = useState<string | null>(null)
   const [topupTarget, setTopupTarget] = useState<ManagedUser | null>(null)
 
+  const USD_TO_IDR = 16000
+
   const loadAll = async () => {
     try {
-      const [u, o, t, top, f] = await Promise.all([
+      const [u, o, t, top, f, c] = await Promise.all([
         api.get<{ users: ManagedUser[] }>('/users'),
         api.get<Overview>('/users/stats/overview'),
-        api.get<{ points: TrendPoint[] }>('/users/stats/jobs-trend?days=30'),
+        api.get<{ points: TrendPoint[] }>(`/users/stats/jobs-trend?days=${trendDays}`),
         api.get<{ users: TopUser[] }>('/users/stats/top-users?limit=6'),
         api.get<{ failures: Failure[] }>('/users/stats/recent-failures?limit=5'),
+        api.get<CostData>(`/users/stats/cost-overview?range=${costRange}`),
       ])
       setUsers(u.users)
       setOverview(o)
       setTrend(t.points)
       setTopUsers(top.users)
       setFailures(f.failures)
+      setCostData(c)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat data admin')
     }
@@ -94,7 +121,7 @@ export default function Admin() {
 
   useEffect(() => {
     void loadAll()
-  }, [])
+  }, [trendDays, costRange])
 
   const flashSuccess = (msg: string) => {
     setFlash(msg)
@@ -232,9 +259,26 @@ export default function Admin() {
           <div className="grid md:grid-cols-3 gap-3">
             {/* Jobs trend line */}
             <div className="card p-5 md:col-span-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-1">
-                Transkrip 30 hari terakhir
-              </p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                  Transkrip per hari
+                </p>
+                <div className="flex items-center gap-1">
+                  {TREND_DAYS_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.key}
+                      onClick={() => setTrendDays(opt.key)}
+                      className={`text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${
+                        trendDays === opt.key
+                          ? 'bg-navy text-white'
+                          : 'text-ink-muted hover:bg-slate-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <p className="text-2xl font-semibold text-navy tabular mb-3">
                 {trend ? trend.reduce((a, b) => a + b.count, 0) : '—'}
                 <span className="text-sm text-ink-muted font-normal ml-2">rapat</span>
@@ -257,6 +301,58 @@ export default function Admin() {
               </p>
             </div>
           </div>
+
+          {/* Cost overview */}
+          {costData && (
+            <div className="mt-3">
+              <div className="card p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="grid place-items-center w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600">
+                      <CurrencyDollar size={13} weight="fill" />
+                    </div>
+                    <p className="text-xs font-semibold text-navy">Estimasi biaya</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {COST_RANGE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setCostRange(opt.key)}
+                        className={`text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${
+                          costRange === opt.key
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-ink-muted hover:bg-slate-100'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-[11px] text-ink-muted font-medium">Total biaya</p>
+                    <p className="text-xl sm:text-2xl font-bold text-navy tabular mt-0.5">
+                      Rp{Math.round(costData.estimatedCostUSD * USD_TO_IDR).toLocaleString('id-ID')}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-ink-muted font-medium">Total transkrip</p>
+                    <p className="text-xl sm:text-2xl font-bold text-navy tabular mt-0.5">
+                      {costData.totalJobs}
+                      <span className="text-sm font-normal text-ink-muted ml-1">file</span>
+                    </p>
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <p className="text-[11px] text-ink-muted font-medium">Total durasi</p>
+                    <p className="text-xl sm:text-2xl font-bold text-navy tabular mt-0.5">
+                      {formatDuration(costData.totalDurationSec)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Top users + recent failures */}
           <div className="grid md:grid-cols-2 gap-3 mt-3">

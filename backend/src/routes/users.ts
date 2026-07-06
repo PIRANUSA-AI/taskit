@@ -123,6 +123,31 @@ usersRouter.get('/stats/top-users', async (c) => {
   })
 })
 
+const DEEPGRAM_COST_PER_MIN = 0.0043
+
+usersRouter.get('/stats/cost-overview', async (c) => {
+  const range = c.req.query('range') ?? 'all'
+
+  let dateFilter = sql`1=1`
+  if (range === 'day') dateFilter = sql`j.created_at >= NOW() - INTERVAL '1 day'`
+  else if (range === 'week') dateFilter = sql`j.created_at >= NOW() - INTERVAL '7 days'`
+  else if (range === 'month') dateFilter = sql`j.created_at >= NOW() - INTERVAL '30 days'`
+  else if (range === 'year') dateFilter = sql`j.created_at >= NOW() - INTERVAL '365 days'`
+
+  const [agg] = await db.execute(sql`
+    SELECT COALESCE(SUM(j.duration_sec), 0)::int AS total_duration_sec,
+           COUNT(j.id)::int AS total_jobs
+    FROM jobs j
+    WHERE j.status = 'completed' AND ${dateFilter}
+  `)
+
+  const totalDurationSec = Number((agg as { total_duration_sec: number }).total_duration_sec ?? 0)
+  const totalJobs = Number((agg as { total_jobs: number }).total_jobs ?? 0)
+  const estimatedCostUSD = parseFloat(((totalDurationSec / 60) * DEEPGRAM_COST_PER_MIN).toFixed(4))
+
+  return c.json({ totalDurationSec, totalJobs, estimatedCostUSD, range })
+})
+
 usersRouter.get('/stats/recent-failures', async (c) => {
   const limit = Math.min(Number(c.req.query('limit') ?? 6), 50)
   const rows = (await db.execute(sql`

@@ -122,25 +122,30 @@ export function BarChart({
   const max = Math.max(1, ...items.map((i) => i.value))
 
   return (
-    <div className="space-y-2.5" role="img" aria-label={label ?? 'Bar chart'}>
-      {items.map((item, i) => (
-        <div key={item.label} className="flex items-center gap-3">
-          <span className="text-xs text-ink-muted truncate w-24 flex-shrink-0">{item.label}</span>
-          <div className="flex-1 h-7 bg-paper rounded-md overflow-hidden relative">
-            <motion.div
-              className="h-full rounded-md"
-              style={{ background: `linear-gradient(90deg, ${color}, ${color}DD)` }}
-              initial={reduce ? false : { width: 0 }}
-              animate={{ width: `${(item.value / max) * 100}%` }}
-              transition={{ duration: 0.7, delay: i * 0.06, ease: [0.16, 1, 0.3, 1] }}
-            />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-ink tabular">
-              {item.value}
-              {item.sub && <span className="text-ink-muted font-normal ml-1">{item.sub}</span>}
-            </span>
+    <div className="space-y-3" role="img" aria-label={label ?? 'Bar chart'}>
+      {items.map((item, i) => {
+        const ratio = item.value / max
+        return (
+          <div key={item.label} className="flex items-center gap-3">
+            <span className="text-xs font-medium text-ink truncate w-24 flex-shrink-0">{item.label}</span>
+            <div className="flex-1 relative">
+              <div className="h-8 bg-paper rounded-lg overflow-hidden relative">
+                <motion.div
+                  className="h-full rounded-lg"
+                  style={{ background: `linear-gradient(135deg, ${color}, ${color}99)` }}
+                  initial={reduce ? false : { width: 0 }}
+                  animate={{ width: `${ratio * 100}%` }}
+                  transition={{ duration: 0.8, delay: i * 0.08, ease: [0.16, 1, 0.3, 1] }}
+                />
+              </div>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-baseline gap-1">
+                <span className="text-sm font-bold text-navy tabular leading-none">{item.value}</span>
+                {item.sub && <span className="text-[11px] text-ink-muted font-medium">{item.sub}</span>}
+              </div>
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
       {items.length === 0 && <p className="text-xs text-ink-muted">Belum ada data.</p>}
     </div>
   )

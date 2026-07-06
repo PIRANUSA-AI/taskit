@@ -10,7 +10,7 @@ searchRouter.get('/', requireAuth, async (c) => {
   const user = c.get('user')
   const q = c.req.query('q')?.trim()
   if (!q || q.length < 2) return c.json({ results: [] })
-  if (q.length > 200) return c.json({ error: 'Pencarian maksimal 200 karakter' }, 400)
+  if (q.length > 100) return c.json({ error: 'Pencarian maksimal 100 karakter' }, 400)
 
   const like = `%${q}%`
 

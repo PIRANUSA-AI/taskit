@@ -72,6 +72,7 @@ export default function SearchPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Cari di semua transkrip…"
+          maxLength={100}
           className="input pl-11 pr-20 text-lg"
           autoFocus
         />

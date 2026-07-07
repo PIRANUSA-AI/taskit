@@ -73,6 +73,7 @@ export type Session = typeof sessions.$inferSelect
 export type Job = typeof jobs.$inferSelect
 export type ActionItemRow = typeof actionItems.$inferSelect
 export type CacheEntry = typeof cacheEntries.$inferSelect
+export type ReminderRow = typeof reminders.$inferSelect
 
 export type JobStatus = 'pending' | 'uploading' | 'queued' | 'transcribing' | 'completed' | 'failed' | 'cancelled'
 
@@ -151,5 +152,29 @@ export const actionItems = pgTable(
     jobIdx: index('action_items_job_idx').on(t.jobId),
     ownerIdx: index('action_items_owner_idx').on(t.owner),
     assigneeIdx: index('action_items_assignee_idx').on(t.assigneeId),
+  })
+)
+
+export const reminders = pgTable(
+  'reminders',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => actionItems.id, { onDelete: 'cascade' }),
+    fromUserId: text('from_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    toUserId: text('to_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    message: text('message').notNull(),
+    read: boolean('read').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    taskIdx: index('reminders_task_idx').on(t.taskId),
+    toUserIdx: index('reminders_to_user_idx').on(t.toUserId),
+    createdIdx: index('reminders_created_idx').on(t.createdAt),
   })
 )

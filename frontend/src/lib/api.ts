@@ -156,8 +156,9 @@ export interface ManagedUser {
 
 export interface TaskGroupItem {
   id: string
-  jobId: string
+  jobId: string | null
   owner: string
+  assigneeId: string | null
   task: string
   due: string | null
   confidence: number
@@ -165,8 +166,8 @@ export interface TaskGroupItem {
   order: number
   createdAt: string
   jobTitle: string | null
-  jobFilename: string
-  jobCreatedAt: string
+  jobFilename: string | null
+  jobCreatedAt: string | null
   jobCompletedAt: string | null
 }
 
@@ -182,4 +183,31 @@ export interface MyTasksResponse {
     completedAt: string | null
     items: TaskGroupItem[]
   }>
+}
+
+export interface AdminTasksResponse {
+  isAdminView: true
+  totalCount: number
+  groups: Array<{
+    owner: string
+    items: TaskGroupItem[]
+  }>
+}
+
+export interface Reminder {
+  id: string
+  taskId: string
+  message: string
+  read: boolean
+  createdAt: string
+  task: string
+  owner: string
+}
+
+export interface RemindersResponse {
+  reminders: Reminder[]
+}
+
+export interface UnreadCountResponse {
+  count: number
 }

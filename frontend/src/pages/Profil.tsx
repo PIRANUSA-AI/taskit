@@ -17,8 +17,10 @@ import {
   Check,
   ArrowLeft,
   Plus,
+  BellRinging,
+  X,
 } from '@phosphor-icons/react'
-import { ApiError, api, type UserStats } from '../lib/api'
+import { ApiError, api, type UserStats, type Reminder } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../components/Toast'
 import { formatDuration, formatRelativeTime } from '../lib/format'
@@ -46,6 +48,8 @@ export default function Profil() {
   const [knownUsers, setKnownUsers] = useState<string[]>([])
   const [userNotFound, setUserNotFound] = useState(false)
 
+  const [reminders, setReminders] = useState<Reminder[]>([])
+
   useEffect(() => {
     api.get<{ users: Array<{ username: string; displayName: string | null }> }>('/playground/users')
       .then((r) => setKnownUsers(r.users.map((u) => u.username)))
@@ -72,6 +76,7 @@ export default function Profil() {
     if (!viewUser) {
       refresh()
       api.get<UserStats>('/auth/me/stats').then(setStats).catch(() => {})
+      api.get<{ reminders: Reminder[] }>('/reminders').then((r) => setReminders(r.reminders)).catch(() => {})
     }
   }, [refresh, viewUser])
 
@@ -104,6 +109,15 @@ export default function Profil() {
     }
   }
 
+  const handleDismissReminder = async (id: string) => {
+    try {
+      await api.patch(`/reminders/${id}/dismiss`)
+      setReminders((prev) => prev.filter((r) => r.id !== id))
+    } catch {
+      // ignore
+    }
+  }
+
   if (!user) return null
 
   const initials = (user.displayName ?? user.username)
@@ -116,6 +130,47 @@ export default function Profil() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 md:px-8 pt-8 md:pt-12 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-32">
+      {/* Reminder cards */}
+      {!viewUser && reminders.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 space-y-3"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <BellRinging size={16} weight="fill" className="text-amber-600" />
+            <p className="text-sm font-semibold text-ink-muted uppercase tracking-wide">Pengingat</p>
+          </div>
+          {reminders.map((r) => (
+            <motion.div
+              key={r.id}
+              initial={{ opacity: 0, x: -4 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="card p-4 border-l-4 border-l-amber-400 bg-amber-50/30"
+            >
+              <div className="flex items-start gap-3">
+                <div className="grid place-items-center w-8 h-8 rounded-lg bg-amber-100 text-amber-700 shrink-0">
+                  <BellRinging size={15} weight="fill" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-ink leading-relaxed">{r.message}</p>
+                  <p className="text-[11px] text-ink-muted mt-1">
+                    Tugas: {r.task}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleDismissReminder(r.id)}
+                  className="grid place-items-center w-7 h-7 rounded-md text-slate-400 hover:text-ink hover:bg-slate-100 shrink-0"
+                  aria-label="Tutup pengingat"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
+
       {/* Identity card */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}

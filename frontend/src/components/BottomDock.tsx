@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { House, ClockCounterClockwise, CheckSquare, UserCircle, MagnifyingGlass } from '@phosphor-icons/react'
+import { api } from '../lib/api'
 
 const TABS = [
   { to: '/', icon: House, match: (p: string) => p === '/' },
@@ -10,6 +12,18 @@ const TABS = [
 
 export function BottomDock() {
   const { pathname } = useLocation()
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    const fetchCount = () => {
+      api.get<{ count: number }>('/reminders/unread-count')
+        .then((r) => setUnreadCount(r.count))
+        .catch(() => {})
+    }
+    fetchCount()
+    const interval = setInterval(fetchCount, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <nav
@@ -20,18 +34,24 @@ export function BottomDock() {
         {TABS.map((tab) => {
           const active = tab.match(pathname)
           const Icon = tab.icon
+          const isProfile = tab.to === '/profil'
           return (
             <Link
               key={tab.to}
               to={tab.to}
               aria-current={active ? 'page' : undefined}
-              className="grid place-items-center w-11 h-11 rounded-full transition-colors hover:bg-paper"
+              className="relative grid place-items-center w-11 h-11 rounded-full transition-colors hover:bg-paper"
             >
               <Icon
                 size={22}
                 weight={active ? 'fill' : 'regular'}
                 className={active ? 'text-brand' : 'text-slate-400'}
               />
+              {isProfile && unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 grid place-items-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold leading-none shadow-sm">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Link>
           )
         })}

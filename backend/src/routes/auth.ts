@@ -142,33 +142,98 @@ authRouter.get('/me', requireAuth, async (c) => {
 
 authRouter.get('/me/tasks', requireAuth, async (c) => {
   const user = c.get('user')
-  const matchName = (user.displayName ?? user.username).trim().toLowerCase()
+  const isAdminMode = user.isAdmin && c.req.query('admin') === '1'
 
-  const rows = await db
-    .select({
-      id: actionItems.id,
-      jobId: actionItems.jobId,
-      owner: actionItems.owner,
-      task: actionItems.task,
-      due: actionItems.due,
-      confidence: actionItems.confidence,
-      done: actionItems.done,
-      order: actionItems.order,
-      createdAt: actionItems.createdAt,
-      jobTitle: jobs.title,
-      jobFilename: jobs.filename,
-      jobCreatedAt: jobs.createdAt,
-      jobCompletedAt: jobs.completedAt,
-    })
-    .from(actionItems)
-    .leftJoin(jobs, eq(jobs.id, actionItems.jobId))
-    .where(
-      and(
-        or(sql`${actionItems.jobId} IS NULL`, eq(jobs.status, 'completed')),
-        or(eq(actionItems.assigneeId, user.id), sql`LOWER(${actionItems.owner}) = ${matchName}`)
+  let rows: Array<{
+    id: string
+    jobId: string | null
+    owner: string
+    assigneeId: string | null
+    task: string
+    due: string | null
+    confidence: number
+    done: boolean
+    order: number
+    createdAt: Date
+    jobTitle: string | null
+    jobFilename: string | null
+    jobCreatedAt: Date | null
+    jobCompletedAt: Date | null
+  }>
+
+  if (isAdminMode) {
+    rows = await db
+      .select({
+        id: actionItems.id,
+        jobId: actionItems.jobId,
+        owner: actionItems.owner,
+        assigneeId: actionItems.assigneeId,
+        task: actionItems.task,
+        due: actionItems.due,
+        confidence: actionItems.confidence,
+        done: actionItems.done,
+        order: actionItems.order,
+        createdAt: actionItems.createdAt,
+        jobTitle: jobs.title,
+        jobFilename: jobs.filename,
+        jobCreatedAt: jobs.createdAt,
+        jobCompletedAt: jobs.completedAt,
+      })
+      .from(actionItems)
+      .leftJoin(jobs, eq(jobs.id, actionItems.jobId))
+      .where(
+        or(sql`${actionItems.jobId} IS NULL`, eq(jobs.status, 'completed'))
       )
-    )
-    .orderBy(desc(sql`COALESCE(${jobs.createdAt}, ${actionItems.createdAt})`), asc(actionItems.order), asc(actionItems.createdAt))
+      .orderBy(desc(sql`COALESCE(${jobs.createdAt}, ${actionItems.createdAt})`), asc(actionItems.order), asc(actionItems.createdAt))
+  } else {
+    const matchName = (user.displayName ?? user.username).trim().toLowerCase()
+    rows = await db
+      .select({
+        id: actionItems.id,
+        jobId: actionItems.jobId,
+        owner: actionItems.owner,
+        assigneeId: actionItems.assigneeId,
+        task: actionItems.task,
+        due: actionItems.due,
+        confidence: actionItems.confidence,
+        done: actionItems.done,
+        order: actionItems.order,
+        createdAt: actionItems.createdAt,
+        jobTitle: jobs.title,
+        jobFilename: jobs.filename,
+        jobCreatedAt: jobs.createdAt,
+        jobCompletedAt: jobs.completedAt,
+      })
+      .from(actionItems)
+      .leftJoin(jobs, eq(jobs.id, actionItems.jobId))
+      .where(
+        and(
+          or(sql`${actionItems.jobId} IS NULL`, eq(jobs.status, 'completed')),
+          or(eq(actionItems.assigneeId, user.id), sql`LOWER(${actionItems.owner}) = ${matchName}`)
+        )
+      )
+      .orderBy(desc(sql`COALESCE(${jobs.createdAt}, ${actionItems.createdAt})`), asc(actionItems.order), asc(actionItems.createdAt))
+  }
+
+  const openCount = rows.filter((r) => !r.done).length
+
+  if (isAdminMode) {
+    const byOwner = new Map<string, { owner: string; items: typeof rows }>()
+    for (const r of rows) {
+      const existing = byOwner.get(r.owner)
+      if (existing) {
+        existing.items.push(r)
+      } else {
+        byOwner.set(r.owner, { owner: r.owner, items: [r] })
+      }
+    }
+
+    return c.json({
+      isAdminView: true,
+      totalCount: rows.length,
+      groups: [...byOwner.values()],
+    })
+  }
 
   const playgroundId = '__playground'
   const byJob = new Map<
@@ -199,8 +264,6 @@ authRouter.get('/me/tasks', requireAuth, async (c) => {
       })
     }
   }
-
-  const openCount = rows.filter((r) => !r.done).length
 
   return c.json({
     user: { username: user.username, displayName: user.displayName ?? user.username },

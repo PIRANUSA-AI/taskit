@@ -153,7 +153,17 @@ export default function Profil() {
                   <BellRinging size={15} weight="fill" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-ink leading-relaxed">{r.message}</p>
+                  <p className="text-sm text-ink leading-relaxed">
+                    {r.message.split(/(@\w+)/g).map((part, i) =>
+                      part.startsWith('@') ? (
+                        <span key={i} className="inline-flex items-center gap-0.5 text-brand-deep bg-brand-soft font-medium px-1.5 py-0.5 rounded text-[12px] -mx-0.5">
+                          {part}
+                        </span>
+                      ) : (
+                        part
+                      )
+                    )}
+                  </p>
                   <p className="text-[11px] text-ink-muted mt-1">
                     Tugas: {r.task}
                   </p>

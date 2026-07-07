@@ -16,17 +16,20 @@ function glmClient(): OpenAI {
   return new OpenAI({ apiKey: k, baseURL: GLM_BASE_URL })
 }
 
-const REMINDER_SYSTEM = `Kamu asisten yang membuat pesan pengingat tugas yang ramah dan natural dalam Bahasa Indonesia.
-Buat pesan SANGAT PENDEK (maks 120 karakter). Variasikan gayanya, jangan monoton.
-
-Contoh:
-- "Hey, tugas ini masih pending nih. Ada kendala?"
-- "Halo, gimana progress tugasnya? Butuh bantuan?"
-- "Masih ada yang belum kelar nih, ada yang bisa dibantu?"
-- "Pengingat: tugas ini belum selesai. Perlu bantuan?"
-- "Hai, cek yuk tugas yang masih terbuka. Ada masalah?"
-
-Keluarkan HANYA teks pesan, tanpa tanda kutip, tanpa markdown, tanpa penjelasan.`
+const REMINDER_TEMPLATES = [
+  (o: string) => `Hey @${o}, tugas ini masih pending nih. Ada kendala?`,
+  (o: string) => `Halo @${o}, gimana progress tugasnya? Butuh bantuan?`,
+  (o: string) => `Masih ada yang belum kelar nih @${o}, ada yang bisa dibantu?`,
+  (o: string) => `Pengingat @${o}: tugas ini belum selesai. Perlu bantuan?`,
+  (o: string) => `Hai @${o}, cek yuk tugas yang masih terbuka. Ada masalah?`,
+  (o: string) => `@${o}, tugasnya gimana nih? Masih ada hambatan?`,
+  (o: string) => `Just a lil reminder @${o}, tugas ini masih nunggu. Butuh bantuan?`,
+  (o: string) => `@${o}, jangan lupa ya, ada tugas yang masih pending.`,
+  (o: string) => `Hai @${o}, aku cek tadi tugas ini belum kelar. Ada yang bisa gue bantu?`,
+  (o: string) => `@${o}, progress tugasnya gimana? Share dong biar kita tau.`,
+  (o: string) => `Eh @${o}, ini tugasnya udah dikerjain belum? Kalau mentok bilang ya.`,
+  (o: string) => `@${o}, sekedar ingetin aja, tugas ini masih on progress belum nih?`,
+]
 
 export const remindersRouter = new Hono<AppEnv>()
 
@@ -67,29 +70,9 @@ async function lastReminderSent(taskId: string): Promise<Date | null> {
   return row?.createdAt ?? null
 }
 
-async function generateReminderMessage(taskText: string, ownerName: string): Promise<string> {
-  try {
-    const client = glmClient()
-    const res = await client.chat.completions.create({
-      model: GLM_MODEL,
-      messages: [
-        { role: 'system', content: REMINDER_SYSTEM },
-        { role: 'user', content: `Tugas: "${taskText}"\nPemilik: ${ownerName}` },
-      ],
-      temperature: 0.8,
-      max_tokens: 80,
-    })
-    const msg = res.choices?.[0]?.message?.content?.trim()
-    if (msg) return msg
-  } catch (err) {
-    console.error('AI reminder generation failed:', err)
-  }
-  const fallbacks = [
-    `Hey @${ownerName}, tugas ini masih belum selesai nih. Ada kendala?`,
-    `Halo @${ownerName}, gimana progress tugasnya? Butuh bantuan?`,
-    `Pengingat untuk @${ownerName}: tugas ini masih pending.`,
-  ]
-  return fallbacks[Math.floor(Math.random() * fallbacks.length)]
+function generateReminderMessage(_taskText: string, ownerName: string): string {
+  const idx = Math.floor(Math.random() * REMINDER_TEMPLATES.length)
+  return REMINDER_TEMPLATES[idx](ownerName)
 }
 
 remindersRouter.post('/tasks/:id', requireAdmin, async (c) => {

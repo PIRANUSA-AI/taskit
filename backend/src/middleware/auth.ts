@@ -9,13 +9,27 @@ export type AppEnv = {
   }
 }
 
+function logAuthReject(c: Context<AppEnv>, reason: 'missing-session-cookie' | 'invalid-session'): void {
+  console.warn('Auth rejected', {
+    reason,
+    method: c.req.method,
+    path: c.req.path,
+    origin: c.req.header('origin') ?? null,
+    referer: c.req.header('referer') ?? null,
+    hasCookieHeader: Boolean(c.req.header('cookie')),
+    hasParsedSessionCookie: Boolean(getCookie(c, 'session')),
+  })
+}
+
 export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const token = getCookie(c, 'session')
   if (!token) {
+    logAuthReject(c, 'missing-session-cookie')
     return c.json({ error: 'Unauthorized' }, 401)
   }
   const result = await findSession(token)
   if (!result) {
+    logAuthReject(c, 'invalid-session')
     return c.json({ error: 'Unauthorized' }, 401)
   }
   c.set('user', result.user)
@@ -24,9 +38,15 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
 
 export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
   const token = getCookie(c, 'session')
-  if (!token) return c.json({ error: 'Unauthorized' }, 401)
+  if (!token) {
+    logAuthReject(c, 'missing-session-cookie')
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
   const result = await findSession(token)
-  if (!result) return c.json({ error: 'Unauthorized' }, 401)
+  if (!result) {
+    logAuthReject(c, 'invalid-session')
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
   if (!result.user.isAdmin) return c.json({ error: 'Forbidden — admin only' }, 403)
   c.set('user', result.user)
   await next()

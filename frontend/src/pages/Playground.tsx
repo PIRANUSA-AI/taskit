@@ -298,11 +298,11 @@ export default function Playground() {
                 value={aiPrompt}
                 onChange={setAiPrompt}
                 placeholder="Contoh: @Salopu siapkan laporan keuangan !jum'at. @Johan revisi draft kontrak !senin #urgent."
-                maxLength={2000}
+                maxLength={10000}
                 users={users.map((u) => ({ username: u.username, displayName: u.displayName }))}
               />
               {aiPrompt.length > 0 && (
-                <p className="text-[11px] text-slate-400 mt-1 text-right">{aiPrompt.length}/2000</p>
+                <p className="text-[11px] text-slate-400 mt-1 text-right">{aiPrompt.length}/10000</p>
               )}
             </div>
             <div className="flex sm:flex-col gap-2 shrink-0">

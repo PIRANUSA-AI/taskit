@@ -46,8 +46,28 @@ const updateSchema = z.object({
 
 export const playgroundRouter = new Hono<AppEnv>()
 
+const CHUNK_MAX_CHARS = 1500
+
+function chunkPrompt(prompt: string): string[] {
+  if (prompt.length <= CHUNK_MAX_CHARS) return [prompt]
+  const sentences = prompt.split(/(?<=[.!?\n])\s*/)
+  const chunks: string[] = []
+  let current = ''
+  for (const sentence of sentences) {
+    const next = current ? current + ' ' + sentence : sentence
+    if (next.length > CHUNK_MAX_CHARS && current.length > 0) {
+      chunks.push(current.trim())
+      current = sentence
+    } else {
+      current = next
+    }
+  }
+  if (current.trim()) chunks.push(current.trim())
+  return chunks
+}
+
 const generateSchema = z.object({
-  prompt: z.string().min(3).max(2000),
+  prompt: z.string().min(3).max(10000),
 })
 
 playgroundRouter.post('/generate', requireAdmin, async (c) => {
@@ -57,25 +77,30 @@ playgroundRouter.post('/generate', requireAdmin, async (c) => {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Input tidak valid' }, 400)
   }
 
+  const prompt = parsed.data.prompt
+  const chunks = chunkPrompt(prompt)
   let tasks: Array<{ owner: string; task: string; due: string | null }> = []
+
   try {
     const client = glmClient()
-    const res = await client.chat.completions.create({
-      model: GLM_MODEL,
-      messages: [
-        { role: 'system', content: GENERATE_SYSTEM },
-        { role: 'user', content: parsed.data.prompt },
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' },
-    })
+    for (const chunk of chunks) {
+      const res = await client.chat.completions.create({
+        model: GLM_MODEL,
+        messages: [
+          { role: 'system', content: GENERATE_SYSTEM },
+          { role: 'user', content: chunk },
+        ],
+        temperature: 0.3,
+        response_format: { type: 'json_object' },
+      })
 
-    const raw = res.choices?.[0]?.message?.content
-    if (!raw) throw new Error('AI tidak memberikan respons')
+      const raw = res.choices?.[0]?.message?.content
+      if (!raw) throw new Error('AI tidak memberikan respons')
 
-    const parsedJson = JSON.parse(raw)
-    tasks = Array.isArray(parsedJson) ? parsedJson : parsedJson.tasks ?? []
-    if (!Array.isArray(tasks)) tasks = []
+      const parsedJson = JSON.parse(raw)
+      const chunkTasks = Array.isArray(parsedJson) ? parsedJson : parsedJson.tasks ?? []
+      if (Array.isArray(chunkTasks)) tasks.push(...chunkTasks)
+    }
   } catch (err) {
     console.error('AI generate failed:', err)
     return c.json({ error: 'Gagal memproses dengan AI. Coba lagi.' }, 502)
@@ -86,7 +111,7 @@ playgroundRouter.post('/generate', requireAdmin, async (c) => {
   }
 
   const created = []
-  for (const t of tasks.slice(0, 20)) {
+  for (const t of tasks.slice(0, 50)) {
     const id = nanoid()
     await db.insert(actionItems).values({
       id,

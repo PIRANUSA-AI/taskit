@@ -93,7 +93,7 @@ export function buildSessionCookie(token: string, opts: { secure: boolean }): st
     `session=${token}`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    'SameSite=None',
     `Max-Age=${maxAge}`,
   ]
   if (opts.secure) parts.push('Secure')
@@ -105,7 +105,7 @@ export function clearSessionCookie(opts: { secure: boolean }): string {
     'session=',
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    'SameSite=None',
     'Max-Age=0',
   ]
   if (opts.secure) parts.push('Secure')

@@ -1,5 +1,5 @@
 const configuredBaseUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
-const BASE_URL = (import.meta.env.DEV ? configuredBaseUrl || 'http://localhost:3000' : '').replace(/\/$/, '')
+const BASE_URL = (configuredBaseUrl || (import.meta.env.DEV ? '' : '/api')).replace(/\/$/, '')
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public detail?: unknown) {

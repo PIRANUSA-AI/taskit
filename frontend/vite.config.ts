@@ -33,15 +33,10 @@ export default defineConfig({
     port: 5173,
     host: true,
     proxy: {
-      '/auth': 'http://localhost:3000',
-      '/jobs': 'http://localhost:3000',
-      '/users': 'http://localhost:3000',
-      '/upload': 'http://localhost:3000',
-      '/share': 'http://localhost:3000',
-      '/tasks': 'http://localhost:3000',
-      '/playground': 'http://localhost:3000',
-      '/search': 'http://localhost:3000',
-      '/health': 'http://localhost:3000',
+      '/api': {
+        target: 'http://localhost:3000',
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
     },
   },
   build: {

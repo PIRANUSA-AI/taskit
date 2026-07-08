@@ -18,8 +18,9 @@ jobs:
           ssh -i ~/.ssh/vps \
             -o StrictHostKeyChecking=accept-new \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
-            "cd ${{ secrets.VPS_APP_DIR }} && \
-             git pull origin main && \
+             "cd ${{ secrets.VPS_APP_DIR }} && \
+              git reset --hard origin/main && \
+              git pull origin main && \
              npm --prefix backend install && \
              npm --prefix frontend install && \
              npm run build && \

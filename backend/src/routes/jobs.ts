@@ -199,9 +199,9 @@ jobsRouter.get('/:id', async (c) => {
 
   if (!job) return c.json({ error: 'Job tidak ditemukan' }, 404)
 
-  // Get progress from cache for in-progress jobs
+  // Get progress from cache (Phase 2 background processing sends progress updates)
   let progress: number | undefined
-  if (job.status !== 'completed' && job.status !== 'failed' && job.status !== 'cancelled') {
+  if (job.status !== 'failed' && job.status !== 'cancelled') {
     const cached = await getCachedJobStatus(id)
     if (cached && typeof cached === 'object' && 'progress' in cached) {
       progress = (cached as { progress?: number }).progress

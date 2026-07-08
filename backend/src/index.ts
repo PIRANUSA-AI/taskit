@@ -2,8 +2,8 @@ import 'dotenv/config'
 import { setGlobalDispatcher, Agent } from 'undici'
 
 setGlobalDispatcher(new Agent({
-  headersTimeout: 60 * 60 * 1000,
-  bodyTimeout: 60 * 60 * 1000,
+  headersTimeout: 180 * 60 * 1000,
+  bodyTimeout: 180 * 60 * 1000,
   connectTimeout: 30 * 1000,
 }))
 

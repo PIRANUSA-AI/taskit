@@ -20,6 +20,16 @@ function derivePhase(
   job: JobDetail | null
 ): { phase: Phase; progress: number; message: string; detail: string } {
   if (job?.status === 'completed') {
+    const progress = job?.progress ?? 100
+    const hasSummary = job.transcript?.summary && job.transcript.summary.length > 0
+    if (progress < 100 || !hasSummary) {
+      return {
+        phase: 'transcribing',
+        progress,
+        message: 'Menyiapkan ringkasan...',
+        detail: `${job.transcript?.segments.length ?? 0} segmen · ${job.transcript?.speakerCount ?? 1} pembicara`,
+      }
+    }
     return {
       phase: 'completed',
       progress: 100,

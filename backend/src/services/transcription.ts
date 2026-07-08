@@ -79,7 +79,7 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
       .where(eq(jobs.id, jobId))
 
     await reconcileReservedCredits(jobId, job.userId, current.durationSec ?? actualDuration, actualDuration)
-    await cacheJobStatus(jobId, { status: 'completed', progress: 100 })
+    await cacheJobStatus(jobId, { status: 'completed', progress: 70 })
     await invalidateUserStats(job.userId)
 
     // Phase 2: Background processing

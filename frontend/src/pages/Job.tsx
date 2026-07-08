@@ -244,31 +244,43 @@ export default function Job() {
 
       <div className="mt-8">
         {job.status === 'completed' && job.transcript ? (
-          <div className="lg:grid lg:grid-cols-[1fr_380px] xl:grid-cols-[1fr_420px] lg:gap-8">
-            <div className="min-w-0">
-              {audioUrl && <AudioPlayer src={audioUrl} mimeType={job.mimeType ?? undefined} audioRef={audioRef} onTimeUpdate={setAudioTime} onPlayingChange={setAudioPlaying} onDuration={setAudioDuration} />}
-              <TranscriptViewer
-                transcript={job.transcript}
-                filename={job.filename}
-                jobId={job.id}
-                speakerNames={job.speakerNames}
-                onActionItemsChange={updateActionItems}
-                onSpeakerRename={renameSpeaker}
-                audioCurrentTime={audioTime}
-              />
-            </div>
-            <div className="mt-6 lg:mt-0 lg:block space-y-4">
-              <div className="lg:sticky lg:top-20">
-                <ActionItemsPanel
+          <>
+            {(!job.transcript.summary || job.transcript.summary.length === 0) && (
+              <div className="card p-4 mb-4 flex items-center gap-3 bg-amber-50 border border-amber-200">
+                <div className="flex items-end gap-0.5 h-4">
+                  {[0, 1, 2].map((i) => (
+                    <span key={i} className="w-1 bg-amber-400 rounded-full animate-pulse-ring" style={{ animationDelay: `${i * 120}ms`, height: `${8 + (i % 3) * 4}px` }} />
+                  ))}
+                </div>
+                <p className="text-sm text-amber-800 font-medium">Transkrip udah siap, ringkasan dan tugas masih disiapkan...</p>
+              </div>
+            )}
+            <div className="lg:grid lg:grid-cols-[1fr_380px] xl:grid-cols-[1fr_420px] lg:gap-8">
+              <div className="min-w-0">
+                {audioUrl && <AudioPlayer src={audioUrl} mimeType={job.mimeType ?? undefined} audioRef={audioRef} onTimeUpdate={setAudioTime} onPlayingChange={setAudioPlaying} onDuration={setAudioDuration} />}
+                <TranscriptViewer
+                  transcript={job.transcript}
+                  filename={job.filename}
                   jobId={job.id}
-                  actionItems={job.actionItems}
                   speakerNames={job.speakerNames}
-                  onChange={updateActionItems}
+                  onActionItemsChange={updateActionItems}
                   onSpeakerRename={renameSpeaker}
+                  audioCurrentTime={audioTime}
                 />
               </div>
+              <div className="mt-6 lg:mt-0 lg:block space-y-4">
+                <div className="lg:sticky lg:top-20">
+                  <ActionItemsPanel
+                    jobId={job.id}
+                    actionItems={job.actionItems}
+                    speakerNames={job.speakerNames}
+                    onChange={updateActionItems}
+                    onSpeakerRename={renameSpeaker}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
+          </>
         ) : job.status === 'failed' || job.status === 'cancelled' ? (
           <div className="card p-8 text-center">
             <WarningCircle weight="duotone" size={48} className="mx-auto text-red-500" />

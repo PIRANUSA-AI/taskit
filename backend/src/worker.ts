@@ -8,8 +8,8 @@ import { isObjectStorageEnabled } from './services/storage.js'
 import { processStoredTranscriptionJob } from './services/transcription.js'
 
 setGlobalDispatcher(new Agent({
-  headersTimeout: 60 * 60 * 1000,
-  bodyTimeout: 60 * 60 * 1000,
+  headersTimeout: 180 * 60 * 1000,
+  bodyTimeout: 180 * 60 * 1000,
   connectTimeout: 30 * 1000,
 }))
 
@@ -46,12 +46,12 @@ async function recoverStuckTranscribingJobs(): Promise<void> {
   if (now - lastStuckRecovery < 60_000) return
   lastStuckRecovery = now
 
-  const cutoff = new Date(now - 30 * 60 * 1000)
+  const cutoff = new Date(now - 180 * 60 * 1000)
   const stuck = await db
     .update(jobs)
     .set({
       status: 'failed' satisfies JobStatus,
-      errorMessage: 'Job timeout: transkripsi tidak selesai dalam 30 menit',
+      errorMessage: 'Job timeout: transkripsi tidak selesai dalam 3 jam',
     })
     .where(and(eq(jobs.status, 'transcribing'), lt(jobs.startedAt, cutoff)))
     .returning({ id: jobs.id, userId: jobs.userId, durationSec: jobs.durationSec })

@@ -3,7 +3,7 @@
     {
       "name": "pinote-api",
       "script": "dist/index.js",
-      "cwd": "/opt/pinote/backend",
+      "cwd": "/var/www/taskit/backend",
       "env": {
         "NODE_ENV": "production",
         "PORT": "3000"
@@ -19,7 +19,7 @@
     {
       "name": "pinote-worker",
       "script": "dist/worker.js",
-      "cwd": "/opt/pinote/backend",
+      "cwd": "/var/www/taskit/backend",
       "env": {
         "NODE_ENV": "production",
         "PORT": "3001",

@@ -10,8 +10,7 @@
     "dev:frontend": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build && npm --prefix backend run build",
     "build:backend": "npm --prefix backend run build",
-    "build:frontend": "npm --prefix frontend run build",
-    "deploy": "npm run build && rsync -avz --delete frontend/dist/ root@pinote.contrivent.com:/var/www/pinote.contrivent.com/ && rsync -avz --delete --exclude node_modules backend/ root@pinote.contrivent.com:/opt/pinote/backend/ && ssh root@pinote.contrivent.com 'cd /opt/pinote/backend && npm install --omit=dev && pm2 restart ecosystem.config.json'"
+    "build:frontend": "npm --prefix frontend run build"
   },
   "devDependencies": {
     "concurrently": "^9.2.3"

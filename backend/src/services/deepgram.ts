@@ -35,6 +35,10 @@ const GLM_MODEL = process.env.GLM_MODEL ?? 'glm-5.2'
 // timestamps are offset before merging.
 const CHUNK_DURATION_SEC = Number(process.env.CHUNK_DURATION_SEC ?? 1800) // 30 min
 
+// Guardian: meetings shorter than this go straight to Deepgram in one call;
+// >= this are split into CHUNK_DURATION_SEC chunks. Defaults to 1 hour.
+const DIRECT_THRESHOLD_SEC = Number(process.env.DIRECT_THRESHOLD_SEC ?? 3600)
+
 function dgKey(): string {
   const k = process.env.DEEPGRAM_API_KEY
   if (!k) throw new Error('DEEPGRAM_API_KEY is required')
@@ -305,6 +309,49 @@ function normalizeActionItem(raw: z.infer<typeof actionItemSchema>): ExtractedAc
   }
 }
 
+function displayCase(s: string): string {
+  const t = s.trim()
+  if (!t) return t
+  const isAllLower = t === t.toLowerCase()
+  const isAllUpper = t.length > 1 && t === t.toUpperCase()
+  if (isAllLower) return t.charAt(0).toUpperCase() + t.slice(1)
+  if (isAllUpper) return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()
+  return t
+}
+
+async function canonicalizeOwners(items: ExtractedActionItem[]): Promise<ExtractedActionItem[]> {
+  if (items.length === 0) return items
+  let rows: { displayName: string | null; username: string; nameAliases: string[] | null }[] = []
+  try {
+    rows = await db
+      .select({ displayName: users.displayName, username: users.username, nameAliases: users.nameAliases })
+      .from(users)
+  } catch {
+    return items
+  }
+  const canonical = new Map<string, string>()
+  for (const u of rows) {
+    const canon = u.displayName ?? u.username
+    const names = [u.displayName, u.username, ...(u.nameAliases ?? [])]
+      .filter((n): n is string => !!n && n.trim().length > 0)
+    for (const n of names) canonical.set(n.trim().toLowerCase(), canon)
+  }
+  return items.map((it) => {
+    const canon = canonical.get(it.owner.trim().toLowerCase())
+    return canon ? { ...it, owner: canon } : { ...it, owner: displayCase(it.owner) }
+  })
+}
+
+function dedupeOwners(items: ExtractedActionItem[]): ExtractedActionItem[] {
+  const seen = new Map<string, ExtractedActionItem>()
+  for (const it of items) {
+    const key = `${it.owner.toLowerCase()}|${it.task.trim().toLowerCase()}`
+    const prev = seen.get(key)
+    if (!prev || it.confidence > prev.confidence) seen.set(key, it)
+  }
+  return [...seen.values()]
+}
+
 async function buildUserContext(): Promise<string> {
   try {
     const rows = await db
@@ -332,7 +379,7 @@ async function buildUserContext(): Promise<string> {
 }
 
 function buildSystemBase(userContext: string): string {
-  return `Kamu asisten analisis rapat Bahasa Indonesia yang sangat disiplin. Format pembicara adalah "Speaker N: <ucapan>". Nama orang asli mungkin disebut di dalam ucapan.
+  return `Kamu asisten analisis rapat Bahasa Indonesia yang sangat disiplin. Label pembicara berupa ANGKA ("0:", "1:", dst.) dari sistem diarisasi — itu BUKAN nama orang. Nama asli peserta hanya muncul di dalam isi ucapan.
 
 ${userContext}ATURAN UTAMA EKSTRAKSI TUGAS:
 - Keluarkan SEMUA tugas dari transkrip tanpa batas jumlah. Over-estimate.
@@ -340,19 +387,19 @@ ${userContext}ATURAN UTAMA EKSTRAKSI TUGAS:
 - Lihat setiap kalimat: imperatif, komitmen, rencana, follow-up, delegasi, pengingat = calon item.
 
 ATURAN MENENTUKAN OWNER (SANGAT PENTING):
-- Gunakan daftar ANGGOTA TIM di atas sebagai referensi utama.
-- Cocokkan nama yang disebut di rapat dengan anggota tim yang PALING MENDEKATI.
-- Contoh: jika disebut "Noel" atau "Yul" dan ada anggota "Yoel" di daftar, owner = "Yoel".
-- Contoh: jika disebut "Saloppu" dan ada anggota "Salopu" di daftar, owner = "Salopu".
-- Gunakan alias yang terdaftar untuk membantu pencocokan.
-- Jika benar-benar tidak ada kecocokan sama sekali, gunakan "Unassigned".
-- NILAI BESAR: prioritaskan kecocokan dengan daftar anggota tim daripada "Unassigned".`
+- Cocokkan nama yang disebut ke daftar ANGGOTA TIM HANYA bila jelas orang yang sama, yaitu salah satu dari:
+  • cocok tepat (boleh beda huruf besar/kecil), atau
+  • merupakan alias terdaftar, atau
+  • salah ejaan / julukan fonetik yang nyata dari anggota itu. Contoh: "DYNA"/"DAYNA" → DINA; "Noel"/"Yul" → Yoel; "Saloppu" → Salopu.
+- Saat sudah cocok, WAJIB pakai ejaan RESMI anggota tim dari daftar.
+- DILARANG memaksa cocok ke anggota terdekat kalau nama itu jelas orang lain. "Joan" BUKAN "Yoel". Nama yang mirip bunyinya belum tentu orang yang sama — pakai konteks (siapa yang ditunjuk / sedang bicara).
+- Jika TIDAK ada kecocokan dengan anggota tim: tulis nama PERSIS seperti yang disebut di rapat, dengan kapitalisasi yang masuk akal (mis. "Joan"). JANGAN gunakan "Unassigned" maupun placeholder seperti "test"/"user".`
 }
 
 const ACTION_RULES = `
 Output JSON: {"title": "...", "summary": "...", "actionItems": [{owner, task, due, confidence}]}.
 
-OWNER: nama dari daftar anggota tim yang paling cocok, atau "Unassigned".
+OWNER: nama anggota tim (ejaan resmi dari daftar) bila jelas cocok; jika tidak ada, tulis nama apa adanya yang disebut. Dilarang "Unassigned".
 TASK: deskripsi Bahasa Indonesia yang spesifik dan detail.
 CONFIDENCE: >=0.8 sangat eksplisit; 0.5-0.8 indikasi kuat; 0.15-0.5 samar.
 DUE: hanya jika disebut eksplisit, null jika tidak ada.
@@ -641,18 +688,29 @@ export async function transcribeAudio(args: {
   buffer: Buffer
   mimeType: string
   language: Language
+  estimatedDurationSec?: number
   onProgress?: (step: string) => void
+  onPartial?: (e: {
+    segments: TranscriptSegment[]
+    detectedLanguage?: string
+    chunkIndex: number
+    chunkCount: number
+  }) => Promise<void> | void
 }): Promise<TranscribeAudioResult> {
-  const isLargeFile = args.buffer.length > 50 * 1024 * 1024
-
   args.onProgress?.('Transcribing audio...')
 
-  if (!isLargeFile) {
+  const transcribeWhole = async (durationSecOverride?: number): Promise<TranscribeAudioResult> => {
     const { words, detectedLanguage } = await callDeepgram(args.buffer, args.mimeType, args.language)
     args.onProgress?.('Processing speaker labels...')
     const segments = wordsToSegments(words)
-    const durationSec = Math.ceil(words[words.length - 1]?.end ?? 0)
+    const durationSec = durationSecOverride ?? Math.ceil(words[words.length - 1]?.end ?? 0)
     return { words, segments, detectedLanguage, durationSec }
+  }
+
+  // Guardian: known-short meetings go straight to Deepgram (no temp file / probe).
+  const est = args.estimatedDurationSec
+  if (est !== undefined && est > 0 && est < DIRECT_THRESHOLD_SEC) {
+    return transcribeWhole()
   }
 
   // Buffer is materialized to a seekable temp file so ffprobe can read duration
@@ -667,24 +725,17 @@ export async function transcribeAudio(args: {
       duration = await getAudioDuration(tmpFile)
     } catch (err) {
       console.warn(`Could not probe audio duration, falling back to single Deepgram call:`, err instanceof Error ? err.message : err)
-      const { words, detectedLanguage } = await callDeepgram(args.buffer, args.mimeType, args.language)
-      args.onProgress?.('Processing speaker labels...')
-      const segments = wordsToSegments(words)
-      const durationSec = Math.ceil(words[words.length - 1]?.end ?? 0)
-      return { words, segments, detectedLanguage, durationSec }
+      return transcribeWhole()
     }
 
     console.log(`Large file (${Math.round(args.buffer.length / 1024 / 1024)}MB, ${Math.round(duration)}s)`)
 
-    if (duration <= CHUNK_DURATION_SEC) {
-      const { words, detectedLanguage } = await callDeepgram(args.buffer, args.mimeType, args.language)
-      args.onProgress?.('Processing speaker labels...')
-      const segments = wordsToSegments(words)
-      return { words, segments, detectedLanguage, durationSec: Math.ceil(duration) }
+    if (duration < DIRECT_THRESHOLD_SEC) {
+      return transcribeWhole(Math.ceil(duration))
     }
 
     const chunkCount = Math.ceil(duration / CHUNK_DURATION_SEC)
-    console.log(`Splitting into ${chunkCount} chunks`)
+    console.log(`Splitting into ${chunkCount} chunks of ${CHUNK_DURATION_SEC}s`)
 
     let allWords: DgWord[] = []
     let detectedLanguage: string | undefined
@@ -706,6 +757,13 @@ export async function transcribeAudio(args: {
 
       allWords.push(...result.words)
       if (i === 0) detectedLanguage = result.detectedLanguage
+
+      await args.onPartial?.({
+        segments: wordsToSegments(allWords),
+        detectedLanguage,
+        chunkIndex: i,
+        chunkCount,
+      })
     }
 
     console.log(`Merged: ${allWords.length} words from ${chunkCount} chunks`)
@@ -759,10 +817,19 @@ export async function generateInsights(segments: TranscriptSegment[]): Promise<{
   const totalLen = lines.reduce((n, l) => n + l.length + 1, 0)
   const userContext = await buildUserContext()
 
-  if (totalLen <= CHUNK_CHAR_TARGET) {
-    return extractSingle(lines.join('\n').slice(0, 60000), userContext)
-  }
+  const result = totalLen <= CHUNK_CHAR_TARGET
+    ? await extractSingle(lines.join('\n').slice(0, 60000), userContext)
+    : await extractLargeInsights(lines, totalLen, userContext)
 
+  const actionItems = dedupeOwners(await canonicalizeOwners(result.actionItems))
+  return { title: result.title, summary: result.summary, actionItems }
+}
+
+async function extractLargeInsights(
+  lines: string[],
+  totalLen: number,
+  userContext: string
+): Promise<{ title: string; summary: string; actionItems: ExtractedActionItem[] }> {
   const chunks = chunkLines(lines)
   console.log(`Transcript large (${totalLen} chars); splitting into ${chunks.length} chunks`)
 

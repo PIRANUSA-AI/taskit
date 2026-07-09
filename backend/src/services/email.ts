@@ -33,13 +33,27 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
   }
 }
 
-export async function sendTaskNotification(input: {
+export async function sendTaskDigest(input: {
   to: string
-  taskTitle: string
+  tasks: { taskTitle: string; due?: string | null }[]
   meetingTitle?: string
   assigneeName?: string
 }): Promise<void> {
-  const subject = `Tugas Baru: ${input.taskTitle}`
+  const count = input.tasks.length
+  const subject =
+    count === 1
+      ? `Tugas Baru: ${input.tasks[0].taskTitle}`
+      : `${count} Tugas Baru${input.meetingTitle ? ` — ${input.meetingTitle}` : ''}`
+
+  const taskRows = input.tasks
+    .map((t, i) => {
+      const due = t.due ? `<p style="margin: 6px 0 0; color: #64748B; font-size: 13px;">Tenggat: ${t.due}</p>` : ''
+      return `<div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px;">
+        <p style="margin: 0; font-weight: 600; font-size: 15px;">${i + 1}. ${t.taskTitle}</p>${due}
+      </div>`
+    })
+    .join('')
+
   const html = `
     <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
       <div style="background: linear-gradient(140deg, #1E1B4B, #312E81); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 24px;">
@@ -47,15 +61,15 @@ export async function sendTaskNotification(input: {
         <span style="font-size: 18px; font-weight: 600; color: #fff; margin-left: 8px;">Pinote</span>
       </div>
       <h2 style="font-size: 18px; margin: 0 0 8px;">Halo ${input.assigneeName || 'Sobat Pinote'}</h2>
-      <p style="color: #64748B; margin: 0 0 16px; line-height: 1.6;">Ada tugas baru yang menunggu kamu:</p>
-      <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-        <p style="margin: 0; font-weight: 600; font-size: 15px;">${input.taskTitle}</p>
-        ${input.meetingTitle ? `<p style="margin: 8px 0 0; color: #64748B; font-size: 13px;">Dari rapat: ${input.meetingTitle}</p>` : ''}
-      </div>
-      <p style="color: #94A3B8; font-size: 12px; margin: 0;">Buka dashboard Pinote buat detailnya.</p>
+      <p style="color: #64748B; margin: 0 0 16px; line-height: 1.6;">Ada ${count} tugas baru yang menunggu kamu:</p>
+      ${taskRows}
+      ${input.meetingTitle ? `<p style="color: #64748B; font-size: 13px; margin: 8px 0 0;">Dari rapat: ${input.meetingTitle}</p>` : ''}
+      <p style="color: #94A3B8; font-size: 12px; margin: 16px 0 0;">Buka dashboard Pinote buat detailnya.</p>
     </div>
   `
-  const text = `Halo ${input.assigneeName || 'Sobat Pinote'},\n\nAda tugas baru: ${input.taskTitle}${input.meetingTitle ? `\nDari rapat: ${input.meetingTitle}` : ''}\n\nBuka dashboard Pinote buat detailnya.`
+  const text = `Halo ${input.assigneeName || 'Sobat Pinote'},\n\nAda ${count} tugas baru yang menunggu kamu:\n${input.tasks
+    .map((t, i) => `${i + 1}. ${t.taskTitle}${t.due ? ` (tenggat: ${t.due})` : ''}`)
+    .join('\n')}${input.meetingTitle ? `\n\nDari rapat: ${input.meetingTitle}` : ''}\n\nBuka dashboard Pinote buat detailnya.`
 
   await sendEmail({ to: input.to, subject, html, text })
 }

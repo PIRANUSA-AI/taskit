@@ -5,7 +5,7 @@ import { actionItems, jobs, users, type JobStatus, type TranscriptPayload, type 
 import { transcribeAudio, polishTranscript, generateInsights } from './deepgram.js'
 import { cacheJobStatus, invalidateUserStats } from './cache.js'
 import { readObject } from './storage.js'
-import { sendTaskNotification } from './email.js'
+import { sendTaskDigest } from './email.js'
 
 const PROGRESS_BY_STEP: Record<string, number> = {
   'Transcribing audio...': 40,
@@ -41,12 +41,36 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
       buffer,
       mimeType: job.mimeType,
       language: job.language as 'id' | 'en' | 'auto',
+      estimatedDurationSec: job.durationSec ?? undefined,
       onProgress: async (step) => {
         console.log(`[${jobId}] ${step}`)
         await cacheJobStatus(jobId, {
           status: 'transcribing',
           progress: stepProgress(step),
         })
+      },
+      onPartial: async ({ segments: partialSegments, detectedLanguage: partialLang }) => {
+        const [now] = await db
+          .select({ status: jobs.status })
+          .from(jobs)
+          .where(eq(jobs.id, jobId))
+          .limit(1)
+        if (!now || now.status === 'cancelled') {
+          throw new Error('Job cancelled during transcription')
+        }
+
+        const partialPayload: TranscriptPayload = {
+          segments: partialSegments,
+          rawSegments: undefined,
+          polished: false,
+          speakerCount: new Set(partialSegments.map((s) => s.speaker)).size,
+          summary: '',
+          language:
+            job.language === 'auto'
+              ? normalizeLang(partialLang)
+              : (job.language as 'id' | 'en' | 'mixed'),
+        }
+        await db.update(jobs).set({ transcript: partialPayload }).where(eq(jobs.id, jobId))
       },
     })
 
@@ -137,32 +161,50 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
             .catch((err) => console.warn(`[${jobId}] Failed to persist action items:`, err))
 
           const meetingTitle = job.title || job.filename.replace(/\.[^/.]+$/, '')
-          for (const item of insights.actionItems) {
-            const matchName = item.owner.trim().toLowerCase()
-            const [user] = await db
+
+          type ResolvedUser = { email: string; displayName: string | null; ccEmails: string[] }
+          const ownerCache = new Map<string, ResolvedUser | null>()
+          const resolveOwner = async (name: string): Promise<ResolvedUser | null> => {
+            const cached = ownerCache.get(name)
+            if (cached !== undefined) return cached
+            const [row] = await db
               .select({ email: users.email, displayName: users.displayName, ccEmails: users.ccEmails })
               .from(users)
-              .where(sql`LOWER(COALESCE(${users.displayName}, ${users.username})) = ${matchName}`)
+              .where(sql`LOWER(COALESCE(${users.displayName}, ${users.username})) = ${name}`)
               .limit(1)
-            if (user?.email) {
-              sendTaskNotification({
-                to: user.email,
-                taskTitle: item.task,
-                meetingTitle,
-                assigneeName: user.displayName ?? item.owner,
-              }).catch((err) => console.warn(`[${jobId}] Email send failed for ${item.owner}:`, err))
-              const ccList = (user.ccEmails ?? []) as string[]
-              for (const cc of ccList) {
-                if (cc !== user.email) {
-                  sendTaskNotification({
-                    to: cc,
-                    taskTitle: item.task,
-                    meetingTitle,
-                    assigneeName: user.displayName ?? item.owner,
-                  }).catch(() => {})
-                }
+            const resolved: ResolvedUser | null = row?.email
+              ? { email: row.email, displayName: row.displayName, ccEmails: (row.ccEmails ?? []) as string[] }
+              : null
+            ownerCache.set(name, resolved)
+            return resolved
+          }
+
+          const bundles = new Map<string, { assigneeName: string; tasks: { taskTitle: string; due?: string | null }[] }>()
+
+          for (const item of insights.actionItems) {
+            const user = await resolveOwner(item.owner.trim().toLowerCase())
+            if (!user) continue
+
+            const assigneeName = user.displayName ?? item.owner
+            const recipients = [user.email, ...user.ccEmails.filter((cc) => cc !== user.email)]
+            for (const to of recipients) {
+              const bundle = bundles.get(to)
+              const task = { taskTitle: item.task, due: item.due ?? null }
+              if (bundle) {
+                bundle.tasks.push(task)
+              } else {
+                bundles.set(to, { assigneeName, tasks: [task] })
               }
             }
+          }
+
+          for (const [to, bundle] of bundles) {
+            sendTaskDigest({
+              to,
+              tasks: bundle.tasks,
+              meetingTitle,
+              assigneeName: bundle.assigneeName,
+            }).catch((err) => console.warn(`[${jobId}] Email send failed for ${to}:`, err))
           }
         }
 
@@ -208,16 +250,19 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
       }
     })()
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error(`[${jobId}] Transcription failed`, err)
-
     const [current] = await db
       .select({ status: jobs.status })
       .from(jobs)
       .where(eq(jobs.id, jobId))
       .limit(1)
 
-    if (!current || current.status === 'cancelled') return
+    if (!current || current.status === 'cancelled') {
+      console.log(`[${jobId}] Job cancelled; aborting transcription`)
+      return
+    }
+
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`[${jobId}] Transcription failed`, err)
 
     await Promise.all([
       db

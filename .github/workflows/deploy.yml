@@ -18,5 +18,6 @@ jobs:
           sudo npm --prefix backend install
           sudo npm --prefix frontend install
           sudo npm run build
+          sudo npm --prefix backend run db:migrate
           sudo pm2 restart pinote-api pinote-worker
           sudo pm2 save

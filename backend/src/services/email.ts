@@ -1,15 +1,29 @@
-const CF_API = 'https://api.cloudflare.com/client/v4'
+import nodemailer from 'nodemailer'
 
-function getConfig() {
-  const accountId = process.env.CF_ACCOUNT_ID
-  const apiToken = process.env.CF_EMAIL_API_TOKEN
+let transporter: nodemailer.Transporter | null = null
+
+function getTransporter() {
+  if (transporter) return transporter
+
+  const host = process.env.SMTP_HOST
+  const port = Number(process.env.SMTP_PORT ?? 587)
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
   const from = process.env.EMAIL_FROM ?? 'noreply@contrivent.com'
 
-  if (!accountId || !apiToken) {
-    throw new Error('CF_ACCOUNT_ID and CF_EMAIL_API_TOKEN required for email sending')
+  if (!host || !user || !pass) {
+    console.warn('Email disabled: set SMTP_HOST, SMTP_USER, SMTP_PASS env vars')
+    return null
   }
 
-  return { accountId, apiToken, from }
+  transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  })
+
+  return transporter
 }
 
 interface SendEmailInput {
@@ -20,26 +34,15 @@ interface SendEmailInput {
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<void> {
-  const { accountId, apiToken, from } = getConfig()
+  const t = getTransporter()
+  if (!t) return
 
-  const res = await fetch(`${CF_API}/accounts/${accountId}/email/sending/send`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: { name: 'Pinote', email: from },
-      to: [{ email: input.to }],
-      subject: input.subject,
-      html: input.html,
-      text: input.text,
-    }),
-  })
+  const from = process.env.EMAIL_FROM ?? 'noreply@contrivent.com'
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    console.error(`Email send failed (${res.status}): ${text}`)
+  try {
+    await t.sendMail({ from, to: input.to, subject: input.subject, html: input.html, text: input.text })
+  } catch (err) {
+    console.error('Email send failed:', err)
   }
 }
 

@@ -39,7 +39,7 @@ export default function SharedJob() {
           <p className="mt-3 font-medium text-navy">{error}</p>
           <Link to="/welcome" className="btn-ghost mt-6 inline-flex">
             <ArrowLeft size={16} />
-            Beranda Pinote
+            Beranda Rekapin
           </Link>
         </div>
       </div>
@@ -56,7 +56,7 @@ export default function SharedJob() {
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 md:px-8">
           <Link to="/welcome" className="flex items-center gap-2.5">
             <BrandMark size={28} />
-            <span className="text-[15px] font-semibold tracking-tight text-navy">Pinote</span>
+            <span className="text-[15px] font-semibold tracking-tight text-navy">Rekapin</span>
           </Link>
           <span className="text-xs font-medium text-slate-400">Link publik</span>
         </div>

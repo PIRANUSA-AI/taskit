@@ -69,7 +69,7 @@ function derivePhase(
     return {
       phase: 'transcribing',
       progress: job?.progress ?? (job?.status === 'queued' ? 20 : 60),
-      message: job?.status === 'queued' ? 'Masuk antrian' : 'Pinote lagi nulis transkrip',
+      message: job?.status === 'queued' ? 'Masuk antrian' : 'Rekapin lagi nulis transkrip',
       detail:
         job?.status === 'queued'
           ? 'Audio udah aman, tinggal nunggu giliran diproses.'

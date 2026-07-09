@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, ArrowSquareOut, Plus } from '@phosphor-icons/react'
 
-const DISMISSED_KEY = 'pinote-install-dismissed'
+const DISMISSED_KEY = 'rekapin-install-dismissed'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>
@@ -79,7 +79,7 @@ export function InstallBanner() {
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-semibold">Install Pinote</p>
+                  <p className="text-sm font-semibold">Install Rekapin</p>
                   <p className="text-xs text-white/60 mt-0.5">Akses lebih cepat dari layar utama</p>
                 </>
               )}

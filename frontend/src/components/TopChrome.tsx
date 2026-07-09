@@ -19,11 +19,11 @@ export function TopChrome() {
         <Link
           to="/"
           className="flex items-center gap-2 transition-opacity hover:opacity-80"
-          aria-label="Pinote — beranda"
+          aria-label="Rekapin — beranda"
         >
           <BrandMark size={26} />
           <span className="text-sm font-semibold tracking-tight text-navy hidden xs:inline">
-            Pinote
+            Rekapin
           </span>
         </Link>
         <div className="flex items-center gap-3">

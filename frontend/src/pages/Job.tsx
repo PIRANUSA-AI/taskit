@@ -146,7 +146,7 @@ export default function Job() {
       if (navigator.share) {
         await navigator.share({
           title: job.filename,
-          text: 'Transkrip Pinote',
+          text: 'Transkrip Rekapin',
           url: shareUrl,
         })
       } else {
@@ -318,7 +318,7 @@ export default function Job() {
                 ))}
               </div>
               <p className="text-sm text-brand-deep font-medium">
-                Pinote lagi nulis transkrip... ({job.transcript.segments.length} segmen sejauh ini)
+                Rekapin lagi nulis transkrip... ({job.transcript.segments.length} segmen sejauh ini)
               </p>
               <button
                 onClick={() => handleDelete()}
@@ -348,7 +348,7 @@ export default function Job() {
               </div>
               <div>
                 <p className="text-sm text-ink font-medium">
-                  {job.status === 'queued' ? 'Masuk antrian' : 'Pinote lagi nulis transkrip'}
+                  {job.status === 'queued' ? 'Masuk antrian' : 'Rekapin lagi nulis transkrip'}
                 </p>
                 <p className="mt-1 text-xs text-ink-muted">
                   {job.status === 'queued'

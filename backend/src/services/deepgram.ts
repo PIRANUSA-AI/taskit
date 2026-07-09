@@ -515,8 +515,12 @@ function getAudioDuration(buffer: Buffer): Promise<number> {
     proc.stdout.on('data', (chunk: Buffer) => output += chunk.toString())
     proc.stderr.on('data', () => {})
     proc.on('close', (code) => {
-      if (code !== 0) return reject(new Error('ffprobe failed'))
-      resolve(parseFloat(output.trim()))
+      const trimmed = output.trim()
+      const parsed = parseFloat(trimmed)
+      if (code !== 0 || !Number.isFinite(parsed) || parsed <= 0) {
+        return reject(new Error(`ffprobe returned invalid duration (code=${code}, output="${trimmed}")`))
+      }
+      resolve(parsed)
     })
     proc.on('error', reject)
     proc.stdin.on('error', () => {})
@@ -641,7 +645,18 @@ export async function transcribeAudio(args: {
     return { words, segments, detectedLanguage, durationSec }
   }
 
-  const duration = await getAudioDuration(args.buffer)
+  let duration: number
+  try {
+    duration = await getAudioDuration(args.buffer)
+  } catch (err) {
+    console.warn(`Could not probe audio duration, falling back to single Deepgram call:`, err instanceof Error ? err.message : err)
+    const { words, detectedLanguage } = await callDeepgram(args.buffer, args.mimeType, args.language)
+    args.onProgress?.('Processing speaker labels...')
+    const segments = wordsToSegments(words)
+    const durationSec = Math.ceil(words[words.length - 1]?.end ?? 0)
+    return { words, segments, detectedLanguage, durationSec }
+  }
+
   console.log(`Large file (${Math.round(args.buffer.length / 1024 / 1024)}MB, ${Math.round(duration)}s)`)
 
   if (duration <= CHUNK_DURATION_SEC) {

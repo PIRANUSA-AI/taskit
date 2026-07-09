@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icon-192.svg', 'icon-512.svg'],
       manifest: {
-        name: 'Pinote',
-        short_name: 'Pinote',
+        name: 'Rekapin',
+        short_name: 'Rekapin',
         description: 'Sumber kebenaran rapat tim',
         theme_color: '#1E1B4B',
         background_color: '#F8FAFC',

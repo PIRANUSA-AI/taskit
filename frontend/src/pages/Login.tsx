@@ -56,7 +56,7 @@ export default function Login() {
             <BrandMark size={56} />
           </motion.div>
           <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-deep">
-            Pinote by Contrivent
+            Rekapin by Contrivent
           </p>
           <h1 className="mt-2 text-center text-3xl md:text-4xl tracking-tightest leading-[1.05] font-semibold text-navy">
             Masuk
@@ -99,7 +99,7 @@ export default function Login() {
           className="mt-5 mx-auto flex items-center justify-center gap-1.5 text-xs font-medium text-slate-400 hover:text-navy transition-colors w-fit"
         >
           <ArrowLeft size={12} weight="bold" />
-          Lihat perkenalan Pinote
+          Lihat perkenalan Rekapin
         </Link>
       </motion.div>
     </div>

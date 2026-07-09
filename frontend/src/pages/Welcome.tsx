@@ -96,7 +96,7 @@ export default function Welcome() {
         className="absolute top-6 left-6 md:top-8 md:left-10 flex items-center gap-2.5 z-20"
       >
         <BrandMark size={30} />
-        <span className="text-sm font-semibold tracking-tight text-navy">Pinote</span>
+        <span className="text-sm font-semibold tracking-tight text-navy">Rekapin</span>
       </motion.div>
 
       {/* Skip control */}
@@ -184,7 +184,7 @@ export default function Welcome() {
       </div>
 
       <footer className="fixed bottom-4 inset-x-0 text-center text-[11px] text-slate-400 z-10 pointer-events-none">
-        Pinote  Contrivention &copy; 2026. by Pinote, Indonesia.
+        Rekapin  Contrivention &copy; 2026. by Rekapin, Indonesia.
       </footer>
     </div>
   )
@@ -207,7 +207,7 @@ function WelcomeSlide() {
         transition={{ delay: 0.25 }}
         className="eyebrow mb-3"
       >
-        Tim Internal Pinote
+        Tim Internal Rekapin
       </motion.p>
       <motion.h1
         initial={{ opacity: 0, y: 10 }}
@@ -330,7 +330,7 @@ function FeaturesSlide() {
         animate={{ opacity: 1, y: 0 }}
         className="eyebrow mb-3"
       >
-        Apa yang Pinote lakuin
+        Apa yang Rekapin lakuin
       </motion.p>
       <motion.h2
         initial={{ opacity: 0, y: 8 }}
@@ -525,7 +525,7 @@ function AccountSlide({
         transition={{ delay: 0.08 }}
         className="mx-auto max-w-sm text-balance text-2xl sm:text-3xl tracking-tightest font-semibold leading-tight text-navy"
       >
-        {nickname ? `Halo, ${nickname}` : 'Masuk ke Pinote'}
+        {nickname ? `Halo, ${nickname}` : 'Masuk ke Rekapin'}
       </motion.h2>
       <p className="mt-2 text-[13px] text-ink-muted">
         Pastikan login dengan @piranusa.com atau @contrivent.com

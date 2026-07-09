@@ -51,7 +51,7 @@ export function Brand({ size = 32, showWord = true, wordClassName, to }: BrandPr
           className={`font-display font-semibold tracking-tight text-navy ${wordClassName ?? ''}`}
           style={{ fontSize: size * 0.5 }}
         >
-          Pinote
+          Rekapin
         </span>
       )}
     </span>

@@ -22,15 +22,15 @@ interface SendEmailInput {
 export async function sendEmail(input: SendEmailInput): Promise<void> {
   const { accountId, apiToken, from } = getConfig()
 
-  const res = await fetch(`${CF_API}/accounts/${accountId}/email/routing/addresses`, {
+  const res = await fetch(`${CF_API}/accounts/${accountId}/email/sending/send`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from,
-      to: input.to,
+      from: { name: 'Pinote', email: from },
+      to: [{ email: input.to }],
       subject: input.subject,
       html: input.html,
       text: input.text,

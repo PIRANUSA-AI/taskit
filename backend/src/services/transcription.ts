@@ -8,8 +8,8 @@ import { readObject } from './storage.js'
 import { sendTaskNotification } from './email.js'
 
 const PROGRESS_BY_STEP: Record<string, number> = {
-  'Transcribing audio...': 35,
-  'Processing speaker labels...': 65,
+  'Transcribing audio...': 40,
+  'Processing speaker labels...': 60,
   'Refining transcript...': 75,
   'Generating summary...': 85,
 }
@@ -17,15 +17,13 @@ const PROGRESS_BY_STEP: Record<string, number> = {
 function stepProgress(step: string): number {
   const exact = PROGRESS_BY_STEP[step]
   if (exact) return exact
-  // Match chunk progress like "Transcribing chunk 1/8..."
   const chunkMatch = step.match(/Transcribing chunk (\d+)\/(\d+)/)
   if (chunkMatch) {
     const current = Number(chunkMatch[1])
     const total = Number(chunkMatch[2])
-    // Map chunk progress to range 35-65
-    return 35 + Math.round((current / total) * 30)
+    return 40 + Math.round((current / total) * 20)
   }
-  return 50
+  return 45
 }
 
 export async function processStoredTranscriptionJob(jobId: string): Promise<void> {
@@ -94,7 +92,7 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
       .where(eq(jobs.id, jobId))
 
     await reconcileReservedCredits(jobId, job.userId, current.durationSec ?? actualDuration, actualDuration)
-    await cacheJobStatus(jobId, { status: 'completed', progress: 70 })
+    await cacheJobStatus(jobId, { status: 'completed', progress: 65 })
     await invalidateUserStats(job.userId)
 
     // Phase 2: Background processing
@@ -102,7 +100,7 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
       try {
         // Step 1: Generate title, summary, action items FIRST (uses raw segments)
         console.log(`[${jobId}] Background: Generating summary...`)
-        await cacheJobStatus(jobId, { status: 'completed', progress: 80 })
+        await cacheJobStatus(jobId, { status: 'completed', progress: 75 })
         const insights = await generateInsights(segments)
 
         const updatedSpeakers = new Set(segments.map((s) => s.speaker))
@@ -171,7 +169,7 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
         // Step 2: Polish transcript (refine segment text) in background
         if (segments.length > 0) {
           console.log(`[${jobId}] Background: Refining transcript...`)
-          await cacheJobStatus(jobId, { status: 'completed', progress: 90 })
+          await cacheJobStatus(jobId, { status: 'completed', progress: 85 })
           try {
             const r = await polishTranscript(segments)
             const polishedSegments = r.polished

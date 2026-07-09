@@ -54,7 +54,7 @@ app.use(
 app.get('/health/live', (c) => {
   return c.json({
     status: 'ok',
-    service: 'audio-to-text-api',
+    service: 'pinote-api',
     time: new Date().toISOString(),
   })
 })
@@ -100,7 +100,7 @@ app.get('/health', async (c) => {
   return c.json(
     {
       status: ok ? 'ok' : 'degraded',
-      service: 'audio-to-text-api',
+      service: 'pinote-api',
       checks,
       time: new Date().toISOString(),
     },

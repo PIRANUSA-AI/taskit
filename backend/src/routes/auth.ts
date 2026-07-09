@@ -65,6 +65,7 @@ authRouter.post('/google', async (c) => {
     return c.json({
       id: user.id,
       username: user.username,
+      email: user.email,
       isAdmin: user.isAdmin,
       displayName: user.displayName,
       creditSeconds: user.creditSeconds,
@@ -107,6 +108,7 @@ authRouter.get('/me', requireAuth, async (c) => {
   return c.json({
     id: user.id,
     username: user.username,
+    email: user.email,
     isAdmin: user.isAdmin,
     displayName: user.displayName,
     creditSeconds: row?.creditSeconds ?? 0,
@@ -301,6 +303,103 @@ authRouter.patch('/me/display-name', requireAuth, async (c) => {
     .set({ displayName: parsed.data.displayName.trim() })
     .where(eq(users.id, user.id))
   return c.json({ ok: true, displayName: parsed.data.displayName.trim() })
+})
+
+const USERNAME_MAX_CHANGES = 3
+
+const usernameSchema = z.object({
+  username: z.string().min(2).max(64).regex(/^[a-zA-Z0-9_.-]+$/, 'Username hanya huruf, angka, _ . -'),
+})
+
+authRouter.patch('/me/username', requireAuth, async (c) => {
+  const user = c.get('user')
+  const body = await c.req.json().catch(() => null)
+  const parsed = usernameSchema.safeParse(body)
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Input tidak valid' }, 400)
+
+  const [row] = await db
+    .select({ usernameChanges: users.usernameChanges })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1)
+
+  if (!row) return c.json({ error: 'User tidak ditemukan' }, 404)
+
+  if (row.usernameChanges >= USERNAME_MAX_CHANGES) {
+    return c.json({ error: `Kesempatan ganti username habis (maks ${USERNAME_MAX_CHANGES}x). Hubungi admin.` }, 403)
+  }
+
+  const existing = await findUserByUsername(parsed.data.username)
+  if (existing && existing.id !== user.id) return c.json({ error: 'Username sudah dipakai' }, 409)
+
+  await db
+    .update(users)
+    .set({
+      username: parsed.data.username,
+      usernameChanges: sql`${users.usernameChanges} + 1`,
+      previousUsernames: sql`COALESCE(${users.previousUsernames}, '[]'::jsonb) || ${JSON.stringify([user.username])}::jsonb`,
+    })
+    .where(eq(users.id, user.id))
+
+  return c.json({ ok: true, username: parsed.data.username, usernameChanges: row.usernameChanges + 1 })
+})
+
+authRouter.get('/me/aliases', requireAuth, async (c) => {
+  const user = c.get('user')
+  const [row] = await db
+    .select({ nameAliases: users.nameAliases })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1)
+
+  return c.json({ aliases: row?.nameAliases ?? [] })
+})
+
+const aliasesSchema = z.object({
+  aliases: z.array(z.string().min(1).max(40)).max(15),
+})
+
+authRouter.patch('/me/aliases', requireAuth, async (c) => {
+  const user = c.get('user')
+  const body = await c.req.json().catch(() => null)
+  const parsed = aliasesSchema.safeParse(body)
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Input tidak valid' }, 400)
+
+  await db
+    .update(users)
+    .set({ nameAliases: parsed.data.aliases })
+    .where(eq(users.id, user.id))
+
+  return c.json({ ok: true, aliases: parsed.data.aliases })
+})
+
+authRouter.get('/me/emails', requireAuth, async (c) => {
+  const user = c.get('user')
+  const [row] = await db
+    .select({ email: users.email, ccEmails: users.ccEmails })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1)
+
+  return c.json({ primary: row?.email ?? '', cc: row?.ccEmails ?? [] })
+})
+
+const emailsSchema = z.object({
+  cc: z.array(z.string().email('Email tidak valid')).max(3),
+})
+
+authRouter.patch('/me/emails', requireAuth, async (c) => {
+  const user = c.get('user')
+  const body = await c.req.json().catch(() => null)
+  const parsed = emailsSchema.safeParse(body)
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Input tidak valid' }, 400)
+
+  await db
+    .update(users)
+    .set({ ccEmails: parsed.data.cc })
+    .where(eq(users.id, user.id))
+
+  return c.json({ ok: true, cc: parsed.data.cc })
 })
 
 authRouter.post('/me/task-token', requireAuth, async (c) => {

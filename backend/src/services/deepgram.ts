@@ -1,6 +1,8 @@
 import { spawn } from 'child_process'
 import OpenAI from 'openai'
 import { z } from 'zod'
+import { db } from '../db/client.js'
+import { users } from '../db/schema.js'
 import type { ExtractedActionItem, TranscriptPayload, TranscriptSegment } from '../db/schema.js'
 
 type Language = 'id' | 'en' | 'auto'
@@ -300,25 +302,58 @@ function normalizeActionItem(raw: z.infer<typeof actionItemSchema>): ExtractedAc
   }
 }
 
-const SYSTEM_BASE = `Kamu asisten analisis rapat Bahasa Indonesia yang sangat disiplin. Format pembicara adalah "Speaker N: <ucapan>". Nama orang asli mungkin disebut di dalam ucapan (mis. "Salopu", "Johan").`
+async function buildUserContext(): Promise<string> {
+  try {
+    const rows = await db
+      .select({
+        username: users.username,
+        displayName: users.displayName,
+        nameAliases: users.nameAliases,
+      })
+      .from(users)
+      .orderBy(users.username)
+
+    if (rows.length === 0) return ''
+
+    const lines = rows.map((u) => {
+      const name = u.displayName ?? u.username
+      const aliases = (u.nameAliases ?? []).filter(Boolean)
+      const aliasStr = aliases.length > 0 ? ` (alias: ${aliases.join(', ')})` : ''
+      return `- ${name} (username: ${u.username})${aliasStr}`
+    })
+
+    return `DAFTAR ANGGOTA TIM TERDAFTAR:\n${lines.join('\n')}\n\n`
+  } catch {
+    return ''
+  }
+}
+
+function buildSystemBase(userContext: string): string {
+  return `Kamu asisten analisis rapat Bahasa Indonesia yang sangat disiplin. Format pembicara adalah "Speaker N: <ucapan>". Nama orang asli mungkin disebut di dalam ucapan.
+
+${userContext}ATURAN UTAMA EKSTRAKSI TUGAS:
+- Keluarkan SEMUA tugas dari transkrip tanpa batas jumlah. Over-estimate.
+- Setiap ORANG bisa punya BANYAK tugas. JANGAN gabungin tugas yang beda.
+- Lihat setiap kalimat: imperatif, komitmen, rencana, follow-up, delegasi, pengingat = calon item.
+
+ATURAN MENENTUKAN OWNER (SANGAT PENTING):
+- Gunakan daftar ANGGOTA TIM di atas sebagai referensi utama.
+- Cocokkan nama yang disebut di rapat dengan anggota tim yang PALING MENDEKATI.
+- Contoh: jika disebut "Noel" atau "Yul" dan ada anggota "Yoel" di daftar, owner = "Yoel".
+- Contoh: jika disebut "Saloppu" dan ada anggota "Salopu" di daftar, owner = "Salopu".
+- Gunakan alias yang terdaftar untuk membantu pencocokan.
+- Jika benar-benar tidak ada kecocokan sama sekali, gunakan "Unassigned".
+- NILAI BESAR: prioritaskan kecocokan dengan daftar anggota tim daripada "Unassigned".`
+}
 
 const ACTION_RULES = `
-PRINSIP UTAMA — EKSTRAKSI MENYELURUH (SANGAT PENTING):
-- Keluarkan SEMUA tugas yang ditugaskan dalam transkrip. TIDAK ADA batas jumlah. Sebuah rapat 1 jam sering punya 15-25+ action items — intuisi kamu HARUS over-estimate.
-- Setiap ORANG bisa memiliki BANYAK tugas. Jangan dibatasi. Misal jika Dina diminta: update laporan, cek invoice, follow up klien X, koordinasi tim marketing — itu 4 tugas terpisah untuk Dina, keluarkan SEMUANYA sebagai 4 item berbeda.
-- JANGAN PERNAH menyederhanakan/menggabungkan tugas berbeda menjadi satu. Misal "kirim laporan sales" dan "update CRM" = DUA item.
-- Lihat transkrip baris demi baris. SETIAP kalimat yang mengandung unsur penugasan, permintaan, komitmen, atau rencana = calon item. Kalau ragu, TETAP KELUARKAN dengan confidence rendah (0.15-0.4) — lebih baik terlalu banyak daripada kelewat.
+Output JSON: {"title": "...", "summary": "...", "actionItems": [{owner, task, due, confidence}]}.
 
-ATURAN PENUGASAN (lebih longgar — ambil SEMUA yang mendekati tugas):
-- TUGAS: imperatif langsung ("tolong kirim", "mohon update", "bantu cek", "kamu yang handle"), komitmen ("aku akan...", "nanti saya...", "saya usahakan"), rencana ("nanti kita bahas lanjutan", "minggu depan kita ..."), jadwal ("rapat lanjutan hari Jumat"), follow-up ("ditindaklanjuti", "di-check", "di-monitor"), delegasi ("minta tolong", "bisa minta bantuannya?"), pengingat ("jangan lupa", "pastikan").
-- JUGA ambil: kalimat yang menyiratkan tindakan ("...perlu diselesaikan", "...harus segera", "masalahnya perlu diurus", "kita perlu ...", "saya akan kirimkan", "tolong dibantu", "nanti dikoordinasikan").
-- JANGAN: pertanyaan retoris, opini murni tanpa tindak lanjut, basa-basi.
-- owner = nama orang asli yang disebut ATAU "Speaker N" jika speaker menugaskan diri sendiri. Jika tidak jelas, "Unassigned".
-- task = deskripsi spesifik Bahasa Indonesia, kalimat aktif. Pertahankan detail.
-- confidence: >=0.8 sangat eksplisit; 0.5-0.8 indikasi kuat; 0.15-0.5 samar tapi tetap keluar.
-- due = hanya jika disebut eksplisit.
-
-INGAT: LEBIH BAIK 20 tugas dengan 5 false positive daripada 5 tasks kelewat 15. Kuantitas diutamakan.`.trim()
+OWNER: nama dari daftar anggota tim yang paling cocok, atau "Unassigned".
+TASK: deskripsi Bahasa Indonesia yang spesifik dan detail.
+CONFIDENCE: >=0.8 sangat eksplisit; 0.5-0.8 indikasi kuat; 0.15-0.5 samar.
+DUE: hanya jika disebut eksplisit, null jika tidak ada.
+INGAT: LEBIH BAIK 20 tugas dengan 5 false positive daripada 5 kelewat 15.`.trim()
 
 function buildLines(segments: TranscriptSegment[]): string[] {
   return segments.map((s) => `${s.speaker}: ${s.text}`)
@@ -364,25 +399,23 @@ interface ChunkResult {
   carryContext: string
 }
 
-async function extractChunk(args: { text: string; carryContext: string; chunkIndex: number; chunkCount: number }): Promise<ChunkResult> {
+async function extractChunk(args: { text: string; carryContext: string; chunkIndex: number; chunkCount: number; userContext: string }): Promise<ChunkResult> {
   const isFirst = args.chunkIndex === 0
   const isLast = args.chunkIndex === args.chunkCount - 1
   const contextBlock = args.carryContext
-    ? `\n\n--- KONTEKS DARI BAGIAN SEBELUMNYA (gunakan untuk resolve referensi "dia/tadi/itu", JANGAN ekstrak ulang item yang sama) ---\n${args.carryContext}`
+    ? `\n\n--- KONTEKS DARI BAGIAN SEBELUMNYA ---\n${args.carryContext}`
     : ''
 
-  const system = `${SYSTEM_BASE}
+  const system = `${buildSystemBase(args.userContext)}
 
-Kamu menganalisis BAGIAN ${args.chunkIndex + 1} dari ${args.chunkCount} sebuah transkrip rapat panjang.${isFirst ? '' : ' Ini BUKAN bagian pertama; gunakan konteks sebelumnya untuk memahami referensi.'}${isLast ? ' Ini bagian terakhir.' : ''}
+Kamu menganalisis BAGIAN ${args.chunkIndex + 1} dari ${args.chunkCount} transkrip rapat panjang.${isFirst ? '' : ' Ini BUKAN bagian pertama; gunakan konteks sebelumnya.'}${isLast ? ' Ini bagian terakhir.' : ''}
 
 Tugas:
-1. "actionItems": daftar tugas/action items dari BAGIAN INI saja, mengikuti aturan ketat di bawah.
-2. "summary": 1-3 poin ringkasan singkat BAGIAN INI (Bahasa Indonesia, masing-masing diawali "- ").
-3. "carryContext": essence penting untuk dibawa ke bagian berikutnya (DAFTAR owner yang sudah teridentifikasi + nama asli jika diketahui, keputusan/decision points, dan tugas yang SUDAH diambil — agar tidak diekstrak ulang). Maksimal ~${CARRY_MAX_CHARS} karakter, padat dan informatif.
+1. "actionItems": daftar tugas dari BAGIAN INI saja.
+2. "summary": 1-3 poin ringkasan bagian ini, masing-masing diawali "- ".
+3. "carryContext": essence untuk bagian berikutnya (owner sudah teridentifikasi, keputusan, tugas sudah diambil). Maksimal ~${CARRY_MAX_CHARS} karakter.
 
-${ACTION_RULES}
-
-Output JSON: {"summary": "...", "actionItems": [{owner, task, due, confidence}], "carryContext": "..."}. HANYA JSON.`
+${ACTION_RULES}`
 
   try {
     const parsed = chunkResponseSchema.safeParse(await callGlmJson([
@@ -412,26 +445,24 @@ interface MergeInput {
   rawItems: ExtractedActionItem[]
 }
 
-async function mergeInsights(input: MergeInput): Promise<{ summary: string; actionItems: ExtractedActionItem[]; title: string }> {
+async function mergeInsights(input: MergeInput & { userContext: string }): Promise<{ summary: string; actionItems: ExtractedActionItem[]; title: string }> {
   const itemsBlock = input.rawItems.length
     ? input.rawItems.map((it, i) => `${i + 1}. [${it.owner}] ${it.task}${it.due ? ` (due: ${it.due})` : ''} (conf: ${it.confidence.toFixed(2)})`).join('\n')
     : '(tidak ada)'
   const summariesBlock = input.chunkSummaries.filter(Boolean).map((s, i) => `Bagian ${i + 1}:\n${s}`).join('\n\n')
 
-  const system = `${SYSTEM_BASE}
+  const system = `${buildSystemBase(input.userContext)}
 
 Beberapa bagian transkrip rapat sudah dianalisis terpisah. Tugas kamu:
-1. "title": judul SANGAT SINGKAT (3-7 kata) dalam Bahasa Indonesia yang mencerminkan inti/topik utama rapat.
-2. "summary": sintesis 3-5 poin koheren untuk SELURUH rapat dari ringkasan per-bagian di bawah (Bahasa Indonesia, masing-masing diawali "- ").
-3. "actionItems": gabungan final dari daftar item mentah di bawah. ATURAN PENTING:
-   - HAPUS duplikat yang BENAR-BENAR sama (tugas identik untuk owner sama dari chunk berbeda). Ambil confidence TERTINGGI.
-   - JANGAN GABUNGKAN dua tugas berbeda hanya karena owner-nya sama atau mirip. Misal "[Dina] kirim laporan" dan "[Dina] update CRM" = DUA item terpisah, pertahankan keduanya.
-   - JANGAN menambah item baru yang tidak ada di daftar.
-   - JANGAN menghapus item hanya karena terdengar sepele/pendek. Pertahankan SEMUA item valid.
-   - Pertahankan detail spesifik dari task (objek, tujuan, lokasi). Jangan digeneralisasi.
-   - Urutkan: kumpulkan per owner, lalu ikuti urutan kemunculan.
+1. "title": judul SANGAT SINGKAT (3-7 kata).
+2. "summary": sintesis 3-5 poin koheren untuk SELURUH rapat.
+3. "actionItems": gabungan final dari daftar item mentah di bawah.
+   - HAPUS duplikat identik (tugas + owner sama). Ambil confidence TERTINGGI.
+   - JANGAN gabung tugas beda meski owner sama.
+   - JANGAN tambah item baru.
+   - Urutkan per owner, lalu urutan kemunculan.
 
-Output JSON: {"title": "...", "summary": "...", "actionItems": [{owner, task, due, confidence}]}. HANYA JSON.`
+${ACTION_RULES}`
 
   try {
     const parsed = mergedResponseSchema.safeParse(await callGlmJson([
@@ -633,17 +664,15 @@ export async function transcribeAudio(args: {
 // ---------------------------------------------------------------------------
 
 // Single-shot path for short transcripts.
-async function extractSingle(text: string): Promise<{ summary: string; actionItems: ExtractedActionItem[]; title: string }> {
-  const system = `${SYSTEM_BASE}
+async function extractSingle(text: string, userContext: string): Promise<{ summary: string; actionItems: ExtractedActionItem[]; title: string }> {
+  const system = `${buildSystemBase(userContext)}
 
 Tugas:
-1. "title": judul SANGAT SINGKAT (3-7 kata) dalam Bahasa Indonesia yang mencerminkan inti/topik utama rapat. Tanpa prefix, tanpa tanda kutip, tanpa nama file. Contoh baik: "Rencana Q1 Tim Sales". Contoh buruk: "Rapat Tim", nama file audio.
+1. "title": judul SANGAT SINGKAT (3-7 kata) dalam Bahasa Indonesia yang mencerminkan inti/topik utama rapat.
 2. "summary": 3-5 poin ringkasan rapat dalam Bahasa Indonesia, masing-masing diawali "- ".
-3. "actionItems": SEMUA tugas/action items dari transkrip, mengikuti aturan di bawah.
+3. "actionItems": SEMUA tugas/action items dari transkrip.
 
-${ACTION_RULES}
-
-Output JSON: {"title": "...", "summary": "...", "actionItems": [{owner, task, due, confidence}]}. HANYA JSON.`
+${ACTION_RULES}`
   try {
     const parsed = mergedResponseSchema.safeParse(await callGlmJson([
       { role: 'system', content: system },
@@ -667,15 +696,14 @@ Output JSON: {"title": "...", "summary": "...", "actionItems": [{owner, task, du
 export async function generateInsights(segments: TranscriptSegment[]): Promise<{ title: string; summary: string; actionItems: ExtractedActionItem[] }> {
   const lines = buildLines(segments)
   const totalLen = lines.reduce((n, l) => n + l.length + 1, 0)
+  const userContext = await buildUserContext()
 
-  // Short transcript: one call returns both summary and action items.
   if (totalLen <= CHUNK_CHAR_TARGET) {
-    return extractSingle(lines.join('\n').slice(0, 60000))
+    return extractSingle(lines.join('\n').slice(0, 60000), userContext)
   }
 
-  // Long transcript: chunked extraction with carry-over, then merge pass.
   const chunks = chunkLines(lines)
-  console.log(`Transcript large (${totalLen} chars); splitting into ${chunks.length} chunks with carry-over context`)
+  console.log(`Transcript large (${totalLen} chars); splitting into ${chunks.length} chunks`)
 
   let carryContext = ''
   const chunkSummaries: string[] = []
@@ -684,16 +712,17 @@ export async function generateInsights(segments: TranscriptSegment[]): Promise<{
   for (let i = 0; i < chunks.length; i++) {
     const res = await extractChunk({
       text: chunks[i].join('\n'),
-      carryContext: carryContext,
+      carryContext,
       chunkIndex: i,
       chunkCount: chunks.length,
+      userContext,
     })
     rawItems.push(...res.actionItems)
     chunkSummaries.push(res.chunkSummary)
     carryContext = res.carryContext
   }
 
-  return mergeInsights({ chunkSummaries, rawItems })
+  return mergeInsights({ chunkSummaries, rawItems, userContext })
 }
 
 export async function transcribeWithDeepgram(args: {

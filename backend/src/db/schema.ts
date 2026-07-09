@@ -9,11 +9,12 @@ export const users = pgTable(
     passwordHash: text('password_hash'),
     isAdmin: boolean('is_admin').notNull().default(false),
     creditSeconds: integer('credit_seconds').notNull().default(0),
-    // Display name used to match AI-extracted action item owners to a real user.
-    // When null, falls back to username. Match is case-insensitive.
     displayName: text('display_name'),
-    // Personal token for the public /tasks/:token view (cross-meeting task list).
     taskShareToken: text('task_share_token'),
+    nameAliases: jsonb('name_aliases').$type<string[]>().default([]),
+    ccEmails: jsonb('cc_emails').$type<string[]>().default([]),
+    usernameChanges: integer('username_changes').notNull().default(0),
+    previousUsernames: jsonb('previous_usernames').$type<string[]>().default([]),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

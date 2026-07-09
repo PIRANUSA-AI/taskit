@@ -57,6 +57,13 @@
       "when": 1783563084148,
       "tag": "0007_loud_brood",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783569293700,
+      "tag": "0008_tiresome_stick",
+      "breakpoints": true
     }
   ]
 }

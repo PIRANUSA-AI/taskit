@@ -19,6 +19,9 @@ import {
   Plus,
   BellRinging,
   X,
+  User,
+  At,
+  Envelope,
 } from '@phosphor-icons/react'
 import { ApiError, api, type UserStats, type Reminder } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
@@ -50,6 +53,19 @@ export default function Profil() {
 
   const [reminders, setReminders] = useState<Reminder[]>([])
 
+  const [aliases, setAliases] = useState<string[]>([])
+  const [aliasInput, setAliasInput] = useState('')
+  const [savingAliases, setSavingAliases] = useState(false)
+
+  const [ccEmails, setCcEmails] = useState<string[]>([])
+  const [ccInput, setCcInput] = useState('')
+  const [savingEmails, setSavingEmails] = useState(false)
+
+  const [editingUsername, setEditingUsername] = useState(false)
+  const [newUsername, setNewUsername] = useState('')
+  const [savingUsername, setSavingUsername] = useState(false)
+  const [usernameChanges, setUsernameChanges] = useState(0)
+
   useEffect(() => {
     api.get<{ users: Array<{ username: string; displayName: string | null }> }>('/playground/users')
       .then((r) => setKnownUsers(r.users.map((u) => u.username)))
@@ -77,6 +93,8 @@ export default function Profil() {
       refresh()
       api.get<UserStats>('/auth/me/stats').then(setStats).catch(() => {})
       api.get<{ reminders: Reminder[] }>('/reminders').then((r) => setReminders(r.reminders)).catch(() => {})
+      api.get<{ aliases: string[] }>('/auth/me/aliases').then((r) => setAliases(r.aliases)).catch(() => {})
+      api.get<{ primary: string; cc: string[] }>('/auth/me/emails').then((r) => setCcEmails(r.cc)).catch(() => {})
     }
   }, [refresh, viewUser])
 
@@ -115,6 +133,69 @@ export default function Profil() {
       setReminders((prev) => prev.filter((r) => r.id !== id))
     } catch {
       // ignore
+    }
+  }
+
+  const handleUsernameChange = async () => {
+    if (!newUsername.trim()) return
+    setSavingUsername(true)
+    try {
+      const res = await api.patch<{ username: string; usernameChanges: number }>('/auth/me/username', { username: newUsername.trim() })
+      setUsernameChanges(res.usernameChanges)
+      setEditingUsername(false)
+      await refresh()
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Gagal ganti username', 'error')
+    } finally {
+      setSavingUsername(false)
+    }
+  }
+
+  const handleAddAlias = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const a = aliasInput.trim().toLowerCase()
+    if (!a || aliases.includes(a) || aliases.length >= 15) return
+    setAliases([...aliases, a])
+    setAliasInput('')
+  }
+
+  const handleRemoveAlias = (a: string) => {
+    setAliases(aliases.filter((x) => x !== a))
+  }
+
+  const handleSaveAliases = async () => {
+    setSavingAliases(true)
+    try {
+      await api.patch('/auth/me/aliases', { aliases })
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Gagal simpan variasi nama', 'error')
+    } finally {
+      setSavingAliases(false)
+    }
+  }
+
+  const handleAddCc = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const email = ccInput.trim()
+    if (!email || !email.includes('@') || ccEmails.includes(email) || ccEmails.length >= 3) return
+    setCcEmails([...ccEmails, email])
+    setCcInput('')
+  }
+
+  const handleRemoveCc = (email: string) => {
+    setCcEmails(ccEmails.filter((e) => e !== email))
+  }
+
+  const handleSaveEmails = async () => {
+    setSavingEmails(true)
+    try {
+      await api.patch('/auth/me/emails', { cc: ccEmails })
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Gagal simpan email', 'error')
+    } finally {
+      setSavingEmails(false)
     }
   }
 
@@ -384,6 +465,125 @@ export default function Profil() {
                   >
                     <LinkIcon size={13} />
                     Buat tautan
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Username */}
+          <div className="card p-5 mb-3">
+            <div className="flex items-start gap-3">
+              <div className="grid place-items-center w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex-shrink-0">
+                <At size={18} weight="duotone" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-ink text-[15px]">Username</p>
+                <p className="text-[13px] text-ink-muted mt-0.5">@{user.username}</p>
+                {editingUsername ? (
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newUsername}
+                      onChange={(e) => setNewUsername(e.target.value)}
+                      className="input flex-1"
+                      placeholder="Username baru"
+                      maxLength={64}
+                      autoFocus
+                    />
+                    <button onClick={handleUsernameChange} disabled={savingUsername || !newUsername.trim()} className="btn-primary text-xs !py-2">
+                      {savingUsername ? '...' : 'Simpan'}
+                    </button>
+                    <button onClick={() => setEditingUsername(false)} className="btn-ghost text-xs !py-2">
+                      Batal
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => { setNewUsername(user.username); setEditingUsername(true) }} className="btn-soft mt-3 text-xs !py-2 !px-3">
+                    <PencilSimple size={12} />
+                    Ganti username
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Name Aliases */}
+          <div className="card p-5 mb-3">
+            <div className="flex items-start gap-3">
+              <div className="grid place-items-center w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex-shrink-0">
+                <User size={18} weight="duotone" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-ink text-[15px]">Variasi Nama</p>
+                <p className="text-[13px] text-ink-muted leading-relaxed mt-0.5">
+                  Biar AI tetap bisa kenali lo meskipun nama lo disebut beda di rapat.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {aliases.map((a) => (
+                    <span key={a} className="inline-flex items-center gap-1.5 chip bg-amber-50 text-amber-700 border border-amber-200 text-xs">
+                      {a}
+                      <button onClick={() => handleRemoveAlias(a)} className="hover:text-amber-900">&times;</button>
+                    </span>
+                  ))}
+                  {aliases.length < 15 && (
+                    <input
+                      type="text"
+                      value={aliasInput}
+                      onChange={(e) => setAliasInput(e.target.value)}
+                      onKeyDown={handleAddAlias}
+                      placeholder="Tambah variasi..."
+                      className="text-xs bg-transparent border-0 outline-none px-1 py-1 w-28 placeholder:text-slate-300"
+                    />
+                  )}
+                </div>
+                {aliases.length > 0 && (
+                  <button onClick={handleSaveAliases} disabled={savingAliases} className="btn-soft mt-3 text-xs !py-2">
+                    {savingAliases ? 'Menyimpan...' : 'Simpan variasi nama'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Email CC */}
+          <div className="card p-5 mb-3">
+            <div className="flex items-start gap-3">
+              <div className="grid place-items-center w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex-shrink-0">
+                <Envelope size={18} weight="duotone" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-ink text-[15px]">Pengaturan Email</p>
+                <p className="text-[13px] text-ink-muted mt-0.5">
+                  Tugas akan dikirim ke email utama dan tambahan.
+                </p>
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="chip bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs">Utama</span>
+                    <span className="text-ink-muted text-xs">{user.email || 'Belum ada email'}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    {ccEmails.map((e) => (
+                      <span key={e} className="inline-flex items-center gap-1.5 chip bg-slate-100 text-slate-600 text-xs">
+                        {e}
+                        <button onClick={() => handleRemoveCc(e)} className="hover:text-red-500">&times;</button>
+                      </span>
+                    ))}
+                    {ccEmails.length < 3 && (
+                      <input
+                        type="email"
+                        value={ccInput}
+                        onChange={(e) => setCcInput(e.target.value)}
+                        onKeyDown={handleAddCc}
+                        placeholder="cc@email.com"
+                        className="text-xs bg-transparent border-0 outline-none px-1 py-1 w-32 placeholder:text-slate-300"
+                      />
+                    )}
+                  </div>
+                </div>
+                {ccEmails.length > 0 && (
+                  <button onClick={handleSaveEmails} disabled={savingEmails} className="btn-soft mt-3 text-xs !py-2">
+                    {savingEmails ? 'Menyimpan...' : 'Simpan email CC'}
                   </button>
                 )}
               </div>

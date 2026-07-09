@@ -139,11 +139,10 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
             .catch((err) => console.warn(`[${jobId}] Failed to persist action items:`, err))
 
           const meetingTitle = job.title || job.filename.replace(/\.[^/.]+$/, '')
-          // Send email notifications to matched users
           for (const item of insights.actionItems) {
             const matchName = item.owner.trim().toLowerCase()
             const [user] = await db
-              .select({ email: users.email, displayName: users.displayName })
+              .select({ email: users.email, displayName: users.displayName, ccEmails: users.ccEmails })
               .from(users)
               .where(sql`LOWER(COALESCE(${users.displayName}, ${users.username})) = ${matchName}`)
               .limit(1)
@@ -154,6 +153,17 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
                 meetingTitle,
                 assigneeName: user.displayName ?? item.owner,
               }).catch((err) => console.warn(`[${jobId}] Email send failed for ${item.owner}:`, err))
+              const ccList = (user.ccEmails ?? []) as string[]
+              for (const cc of ccList) {
+                if (cc !== user.email) {
+                  sendTaskNotification({
+                    to: cc,
+                    taskTitle: item.task,
+                    meetingTitle,
+                    assigneeName: user.displayName ?? item.owner,
+                  }).catch(() => {})
+                }
+              }
             }
           }
         }

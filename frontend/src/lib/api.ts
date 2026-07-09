@@ -51,6 +51,7 @@ export interface SessionUser {
   isAdmin: boolean
   creditSeconds?: number
   displayName?: string | null
+  email?: string | null
 }
 
 export interface UserStats {

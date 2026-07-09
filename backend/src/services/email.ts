@@ -1,29 +1,16 @@
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 
-let transporter: nodemailer.Transporter | null = null
+let client: Resend | null = null
 
-function getTransporter() {
-  if (transporter) return transporter
-
-  const host = process.env.SMTP_HOST
-  const port = Number(process.env.SMTP_PORT ?? 587)
-  const user = process.env.SMTP_USER
-  const pass = process.env.SMTP_PASS
-  const from = process.env.EMAIL_FROM ?? 'noreply@contrivent.com'
-
-  if (!host || !user || !pass) {
-    console.warn('Email disabled: set SMTP_HOST, SMTP_USER, SMTP_PASS env vars')
+function getClient() {
+  if (client) return client
+  const key = process.env.RESEND_API_KEY
+  if (!key) {
+    console.warn('Email disabled: set RESEND_API_KEY env var')
     return null
   }
-
-  transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-  })
-
-  return transporter
+  client = new Resend(key)
+  return client
 }
 
 interface SendEmailInput {
@@ -34,13 +21,13 @@ interface SendEmailInput {
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<void> {
-  const t = getTransporter()
-  if (!t) return
+  const c = getClient()
+  if (!c) return
 
-  const from = process.env.EMAIL_FROM ?? 'noreply@contrivent.com'
+  const from = process.env.EMAIL_FROM ?? 'Pinote <noreply@contrivent.com>'
 
   try {
-    await t.sendMail({ from, to: input.to, subject: input.subject, html: input.html, text: input.text })
+    await c.emails.send({ from, to: input.to, subject: input.subject, html: input.html, text: input.text })
   } catch (err) {
     console.error('Email send failed:', err)
   }

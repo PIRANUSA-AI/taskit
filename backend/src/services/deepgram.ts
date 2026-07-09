@@ -1,4 +1,7 @@
 import { spawn } from 'child_process'
+import { unlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import OpenAI from 'openai'
 import { z } from 'zod'
 import { db } from '../db/client.js'
@@ -503,10 +506,21 @@ interface TranscribeAudioResult {
   durationSec: number
 }
 
-function getAudioDuration(buffer: Buffer): Promise<number> {
+function extForMime(mime: string): string {
+  switch (mime) {
+    case 'audio/mp3': return '.mp3'
+    case 'audio/wav': return '.wav'
+    case 'audio/aac': return '.aac'
+    case 'audio/ogg': return '.ogg'
+    case 'audio/flac': return '.flac'
+    default: return '.bin'
+  }
+}
+
+function getAudioDuration(filePath: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffprobe', [
-      '-i', 'pipe:0',
+      '-i', filePath,
       '-show_entries', 'format=duration',
       '-v', 'quiet',
       '-of', 'csv=p=0',
@@ -523,16 +537,14 @@ function getAudioDuration(buffer: Buffer): Promise<number> {
       resolve(parsed)
     })
     proc.on('error', reject)
-    proc.stdin.on('error', () => {})
-    proc.stdin.end(buffer)
   })
 }
 
-function extractAudioChunk(buffer: Buffer, startSec: number, durationSec: number): Promise<Buffer> {
+function extractAudioChunk(filePath: string, startSec: number, durationSec: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', [
-      '-i', 'pipe:0',
       '-ss', String(startSec),
+      '-i', filePath,
       '-t', String(durationSec),
       '-f', 'wav',
       '-ac', '1',
@@ -548,8 +560,6 @@ function extractAudioChunk(buffer: Buffer, startSec: number, durationSec: number
       resolve(Buffer.concat(chunks))
     })
     proc.on('error', reject)
-    proc.stdin.on('error', () => {})
-    proc.stdin.end(buffer)
   })
 }
 
@@ -645,58 +655,68 @@ export async function transcribeAudio(args: {
     return { words, segments, detectedLanguage, durationSec }
   }
 
-  let duration: number
+  // Buffer is materialized to a seekable temp file so ffprobe can read duration
+  // (pipes return "N/A" for mp4/m4a) and ffmpeg can fast input-seek per chunk
+  // instead of re-decoding from 0 on every chunk.
+  const tmpFile = join(tmpdir(), `pinote-${Date.now()}-${Math.random().toString(36).slice(2)}${extForMime(args.mimeType)}`)
+  await writeFile(tmpFile, args.buffer)
+
   try {
-    duration = await getAudioDuration(args.buffer)
-  } catch (err) {
-    console.warn(`Could not probe audio duration, falling back to single Deepgram call:`, err instanceof Error ? err.message : err)
-    const { words, detectedLanguage } = await callDeepgram(args.buffer, args.mimeType, args.language)
-    args.onProgress?.('Processing speaker labels...')
-    const segments = wordsToSegments(words)
-    const durationSec = Math.ceil(words[words.length - 1]?.end ?? 0)
-    return { words, segments, detectedLanguage, durationSec }
-  }
-
-  console.log(`Large file (${Math.round(args.buffer.length / 1024 / 1024)}MB, ${Math.round(duration)}s)`)
-
-  if (duration <= CHUNK_DURATION_SEC) {
-    const { words, detectedLanguage } = await callDeepgram(args.buffer, args.mimeType, args.language)
-    args.onProgress?.('Processing speaker labels...')
-    const segments = wordsToSegments(words)
-    return { words, segments, detectedLanguage, durationSec: Math.ceil(duration) }
-  }
-
-  const chunkCount = Math.ceil(duration / CHUNK_DURATION_SEC)
-  console.log(`Splitting into ${chunkCount} chunks`)
-
-  let allWords: DgWord[] = []
-  let detectedLanguage: string | undefined
-
-  for (let i = 0; i < chunkCount; i++) {
-    const start = i * CHUNK_DURATION_SEC
-    const chunkDuration = Math.min(CHUNK_DURATION_SEC, duration - start)
-
-    args.onProgress?.(`Transcribing chunk ${i + 1}/${chunkCount}...`)
-    console.log(`Chunk ${i + 1}/${chunkCount} (${start}s)`)
-
-    const chunkBuffer = await extractAudioChunk(args.buffer, start, chunkDuration)
-    const result = await callDeepgram(chunkBuffer, 'audio/wav', args.language)
-
-    for (const w of result.words) {
-      w.start += start
-      w.end += start
+    let duration: number
+    try {
+      duration = await getAudioDuration(tmpFile)
+    } catch (err) {
+      console.warn(`Could not probe audio duration, falling back to single Deepgram call:`, err instanceof Error ? err.message : err)
+      const { words, detectedLanguage } = await callDeepgram(args.buffer, args.mimeType, args.language)
+      args.onProgress?.('Processing speaker labels...')
+      const segments = wordsToSegments(words)
+      const durationSec = Math.ceil(words[words.length - 1]?.end ?? 0)
+      return { words, segments, detectedLanguage, durationSec }
     }
 
-    allWords.push(...result.words)
-    if (i === 0) detectedLanguage = result.detectedLanguage
+    console.log(`Large file (${Math.round(args.buffer.length / 1024 / 1024)}MB, ${Math.round(duration)}s)`)
+
+    if (duration <= CHUNK_DURATION_SEC) {
+      const { words, detectedLanguage } = await callDeepgram(args.buffer, args.mimeType, args.language)
+      args.onProgress?.('Processing speaker labels...')
+      const segments = wordsToSegments(words)
+      return { words, segments, detectedLanguage, durationSec: Math.ceil(duration) }
+    }
+
+    const chunkCount = Math.ceil(duration / CHUNK_DURATION_SEC)
+    console.log(`Splitting into ${chunkCount} chunks`)
+
+    let allWords: DgWord[] = []
+    let detectedLanguage: string | undefined
+
+    for (let i = 0; i < chunkCount; i++) {
+      const start = i * CHUNK_DURATION_SEC
+      const chunkDuration = Math.min(CHUNK_DURATION_SEC, duration - start)
+
+      args.onProgress?.(`Transcribing chunk ${i + 1}/${chunkCount}...`)
+      console.log(`Chunk ${i + 1}/${chunkCount} (${start}s)`)
+
+      const chunkBuffer = await extractAudioChunk(tmpFile, start, chunkDuration)
+      const result = await callDeepgram(chunkBuffer, 'audio/wav', args.language)
+
+      for (const w of result.words) {
+        w.start += start
+        w.end += start
+      }
+
+      allWords.push(...result.words)
+      if (i === 0) detectedLanguage = result.detectedLanguage
+    }
+
+    console.log(`Merged: ${allWords.length} words from ${chunkCount} chunks`)
+
+    args.onProgress?.('Processing speaker labels...')
+    const segments = wordsToSegments(allWords)
+
+    return { words: allWords, segments, detectedLanguage, durationSec: Math.ceil(duration) }
+  } finally {
+    await unlink(tmpFile).catch(() => {})
   }
-
-  console.log(`Merged: ${allWords.length} words from ${chunkCount} chunks`)
-
-  args.onProgress?.('Processing speaker labels...')
-  const segments = wordsToSegments(allWords)
-
-  return { words: allWords, segments, detectedLanguage, durationSec: Math.ceil(duration) }
 }
 
 // ---------------------------------------------------------------------------

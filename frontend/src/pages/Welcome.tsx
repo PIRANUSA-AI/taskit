@@ -4,17 +4,15 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   ArrowRight,
   ArrowLeft,
-  Check,
   MicrophoneStage,
   ListChecks,
   Sparkle,
-  User,
-  Lock,
   WarningCircle,
 } from '@phosphor-icons/react'
-import { ApiError, api, type SessionUser } from '../lib/api'
+import { ApiError, api } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
 import { BrandMark } from '../components/Brand'
+import { signInWithGoogle } from '../lib/firebase'
 
 type Slide = 'welcome' | 'features' | 'personalize' | 'account'
 
@@ -31,24 +29,13 @@ const slideTransition = { type: 'spring' as const, stiffness: 320, damping: 34, 
 export default function Welcome() {
   const navigate = useNavigate()
   const reduce = useReducedMotion()
-  const { register, login } = useAuth()
+  const { refresh } = useAuth()
   const [slide, setSlide] = useState<Slide>('welcome')
   const [dir, setDir] = useState(1)
   const [nickname, setNickname] = useState('')
-  const [signupEnabled, setSignupEnabled] = useState<boolean | null>(null)
-  const [mode, setMode] = useState<'signup' | 'login'>('signup')
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [layoutSlide, setLayoutSlide] = useState<Slide>('welcome')
-
-  useEffect(() => {
-    api
-      .get<{ enabled: boolean }>('/auth/signup-status')
-      .then((r) => setSignupEnabled(r.enabled))
-      .catch(() => setSignupEnabled(false))
-  }, [])
 
   const go = (next: Slide) => {
     if (next === slide) return
@@ -65,33 +52,18 @@ export default function Welcome() {
     if (i > 0) go(SLIDE_ORDER[i - 1])
   }
 
-  useEffect(() => {
-    if (slide === 'account' && !username && nickname) {
-      setUsername(nickname.toLowerCase().replace(/[^a-z0-9_.-]/g, '').slice(0, 24))
-    }
-  }, [slide, nickname, username])
-
-  const handleAccountSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleGoogleSignIn = async () => {
     setError(null)
     setSubmitting(true)
     try {
-      if (mode === 'signup') {
-        await register({ username: username.trim(), password, displayName: nickname || username.trim() })
-      } else {
-        await login(username.trim(), password)
-      }
+      const idToken = await signInWithGoogle()
+      await api.post('/auth/google', { idToken })
+      await refresh()
       navigate('/', { replace: true })
     } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.status === 409) {
-          setError(`Username "@${username.trim()}" sudah dipakai. Silakan ganti username-nya.`)
-        } else {
-          setError(err.message)
-        }
-      } else {
-        setError('Gagal, coba lagi')
-      }
+      if (err instanceof ApiError) setError(err.message)
+      else if (err instanceof Error) setError(err.message)
+      else setError('Gagal masuk dengan Google')
     } finally {
       setSubmitting(false)
     }
@@ -158,22 +130,14 @@ export default function Welcome() {
               {slide === 'personalize' && (
                 <PersonalizeSlide nickname={nickname} setNickname={setNickname} initials={initials} />
               )}
-              {slide === 'account' && (
-                <AccountSlide
-                  signupEnabled={signupEnabled}
-                  mode={mode}
-                  setMode={setMode}
-                  nickname={nickname}
-                  username={username}
-                  setUsername={setUsername}
-                  password={password}
-                  setPassword={setPassword}
-                  initials={initials}
-                  submitting={submitting}
-                  error={error}
-                  onSubmit={handleAccountSubmit}
-                />
-              )}
+            {slide === 'account' && (
+              <AccountSlide
+                nickname={nickname}
+                error={error}
+                submitting={submitting}
+                onGoogleSignIn={handleGoogleSignIn}
+              />
+            )}
             </motion.div>
           </AnimatePresence>
 
@@ -543,153 +507,59 @@ function PersonalBadge({
 }
 
 function AccountSlide({
-  signupEnabled,
-  mode,
-  setMode,
   nickname,
-  initials,
-  username,
-  setUsername,
-  password,
-  setPassword,
-  submitting,
   error,
-  onSubmit,
+  submitting,
+  onGoogleSignIn,
 }: {
-  signupEnabled: boolean | null
-  mode: 'signup' | 'login'
-  setMode: (m: 'signup' | 'login') => void
   nickname: string
-  initials: string
-  username: string
-  setUsername: (v: string) => void
-  password: string
-  setPassword: (v: string) => void
-  submitting: boolean
   error: string | null
-  onSubmit: (e: React.FormEvent) => void
+  submitting: boolean
+  onGoogleSignIn: () => void
 }) {
-  const isSignup = mode === 'signup'
-
   return (
     <div className="text-center">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.92, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 220, damping: 22, delay: 0.02 }}
-        className="mb-4"
-      >
-        <PersonalBadge initials={initials || '?'} name={nickname} className="mx-auto h-28 w-28" />
-      </motion.div>
       <motion.h2
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.08 }}
         className="mx-auto max-w-sm text-balance text-2xl sm:text-3xl tracking-tightest font-semibold leading-tight text-navy"
       >
-        {isSignup
-          ? `Buat akun${nickname ? `, ${nickname}` : ''}`
-          : 'Masuk ke akunmu'}
+        {nickname ? `Halo, ${nickname}` : 'Masuk ke Pinote'}
       </motion.h2>
       <p className="mt-2 text-[13px] text-ink-muted">
-        {isSignup
-          ? 'Pilih username dan password buat tim internal Pinote.'
-          : 'Selamat datang kembali.'}
+        Pastikan login dengan @piranusa.com atau @contrivent.com
       </p>
 
-      {signupEnabled === null ? (
-        <div className="mt-8 flex justify-center">
-          <div className="skeleton h-10 w-full max-w-xs rounded-xl" />
-        </div>
-      ) : (
-        <>
-          <div className="mt-6 mx-auto w-full max-w-xs grid grid-cols-2 p-1 rounded-full bg-slate-100 border border-slate-200">
-            {(['signup', 'login'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className="relative h-9 rounded-full text-xs font-semibold transition-colors"
-              >
-                {mode === m && (
-                  <motion.span
-                    layoutId="account-mode-pill"
-                    className="absolute inset-0 rounded-full bg-surface shadow-card border border-slate-200"
-                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  />
-                )}
-                <span
-                  className={`relative z-10 ${
-                    mode === m ? 'text-navy' : 'text-ink-muted'
-                  }`}
-                >
-                  {m === 'signup' ? 'Belum punya' : 'Sudah punya'}
-                </span>
-              </button>
-            ))}
-          </div>
+      <div className="mt-8">
+        <button
+          onClick={onGoogleSignIn}
+          disabled={submitting}
+          className="btn-ghost w-full justify-center gap-3 py-3 border border-slate-200 hover:bg-slate-50 max-w-xs mx-auto"
+        >
+          {submitting ? (
+            <span className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 48 48">
+              <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
+              <path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" />
+              <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
+              <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
+            </svg>
+          )}
+          {submitting ? 'Memproses...' : 'Masuk dengan Google'}
+        </button>
+      </div>
 
-          <form onSubmit={onSubmit} className="mt-6 space-y-3 mx-auto w-full max-w-xs text-left">
-            <div>
-              <label className="label flex items-center gap-1.5">
-                <User size={11} weight="fill" /> Username
-              </label>
-              <input
-                type="text"
-                required
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="input"
-                placeholder="contoh: dinda"
-                minLength={2}
-                maxLength={64}
-              />
-            </div>
-            <div>
-              <label className="label flex items-center gap-1.5">
-                <Lock size={11} weight="fill" /> {isSignup ? 'Buat password' : 'Password'}
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input"
-                placeholder={isSignup ? 'min. 8 karakter' : '••••••••'}
-                minLength={isSignup ? 8 : 1}
-              />
-            </div>
-
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-100 px-3 py-2.5 text-xs text-red-700"
-              >
-                <WarningCircle size={14} weight="fill" />
-                {error}
-              </motion.div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting || !username || !password}
-              className="btn-primary w-full"
-            >
-              {submitting ? (
-                'Memproses…'
-              ) : (
-                <>
-                  <Check size={14} weight="bold" />
-                  {isSignup ? 'Buat akun & masuk' : 'Masuk'}
-                </>
-              )}
-            </button>
-          </form>
-        </>
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-100 px-3 py-2.5 text-xs text-red-700 max-w-xs mx-auto"
+        >
+          <WarningCircle size={14} weight="fill" />
+          {error}
+        </motion.div>
       )}
     </div>
   )

@@ -59,8 +59,8 @@ authRouter.post('/google', async (c) => {
     }
 
     const { token } = await createSession(user.id)
-    const secure = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging'
-    c.header('Set-Cookie', buildSessionCookie(token, { secure }))
+    const isHttps = c.req.header('x-forwarded-proto') === 'https' || process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging'
+    c.header('Set-Cookie', buildSessionCookie(token, { secure: isHttps }))
 
     return c.json({
       id: user.id,
@@ -79,8 +79,8 @@ authRouter.post('/google', async (c) => {
 authRouter.post('/logout', async (c) => {
   const token = getCookie(c, 'session')
   if (token) await deleteSession(token)
-  const secure = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging'
-  c.header('Set-Cookie', clearSessionCookie({ secure }))
+  const isHttps = c.req.header('x-forwarded-proto') === 'https' || process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging'
+  c.header('Set-Cookie', clearSessionCookie({ secure: isHttps }))
   return c.json({ ok: true })
 })
 

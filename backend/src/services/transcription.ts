@@ -5,12 +5,27 @@ import { actionItems, jobs, users, type JobStatus, type TranscriptPayload, type 
 import { transcribeAudio, polishTranscript, generateInsights } from './deepgram.js'
 import { cacheJobStatus, invalidateUserStats } from './cache.js'
 import { readObject } from './storage.js'
+import { sendTaskNotification } from './email.js'
 
 const PROGRESS_BY_STEP: Record<string, number> = {
-  'Transcribing audio...': 50,
+  'Transcribing audio...': 35,
   'Processing speaker labels...': 65,
   'Refining transcript...': 75,
   'Generating summary...': 85,
+}
+
+function stepProgress(step: string): number {
+  const exact = PROGRESS_BY_STEP[step]
+  if (exact) return exact
+  // Match chunk progress like "Transcribing chunk 1/8..."
+  const chunkMatch = step.match(/Transcribing chunk (\d+)\/(\d+)/)
+  if (chunkMatch) {
+    const current = Number(chunkMatch[1])
+    const total = Number(chunkMatch[2])
+    // Map chunk progress to range 35-65
+    return 35 + Math.round((current / total) * 30)
+  }
+  return 50
 }
 
 export async function processStoredTranscriptionJob(jobId: string): Promise<void> {
@@ -32,7 +47,7 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
         console.log(`[${jobId}] ${step}`)
         await cacheJobStatus(jobId, {
           status: 'transcribing',
-          progress: PROGRESS_BY_STEP[step] ?? 50,
+          progress: stepProgress(step),
         })
       },
     })
@@ -122,6 +137,25 @@ export async function processStoredTranscriptionJob(jobId: string): Promise<void
               }))
             )
             .catch((err) => console.warn(`[${jobId}] Failed to persist action items:`, err))
+
+          const meetingTitle = job.title || job.filename.replace(/\.[^/.]+$/, '')
+          // Send email notifications to matched users
+          for (const item of insights.actionItems) {
+            const matchName = item.owner.trim().toLowerCase()
+            const [user] = await db
+              .select({ email: users.email, displayName: users.displayName })
+              .from(users)
+              .where(sql`LOWER(COALESCE(${users.displayName}, ${users.username})) = ${matchName}`)
+              .limit(1)
+            if (user?.email) {
+              sendTaskNotification({
+                to: user.email,
+                taskTitle: item.task,
+                meetingTitle,
+                assigneeName: user.displayName ?? item.owner,
+              }).catch((err) => console.warn(`[${jobId}] Email send failed for ${item.owner}:`, err))
+            }
+          }
         }
 
         // Step 2: Polish transcript (refine segment text) in background

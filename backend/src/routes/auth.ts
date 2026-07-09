@@ -9,8 +9,10 @@ import {
   createUser,
   deleteSession,
   findUserByUsername,
+  findUserByEmail,
   verifyPassword,
 } from '../services/auth.js'
+import { verifyGoogleToken } from '../services/firebase.js'
 import { requireAuth, type AppEnv } from '../middleware/auth.js'
 import { db } from '../db/client.js'
 import { actionItems, jobs, users } from '../db/schema.js'
@@ -21,7 +23,7 @@ const DEEPGRAM_COST_PER_MIN = 0.0043
 const LOGIN_RATE_LIMIT_MAX = Number(process.env.LOGIN_RATE_LIMIT_MAX ?? 10)
 const LOGIN_RATE_LIMIT_WINDOW_SEC = Number(process.env.LOGIN_RATE_LIMIT_WINDOW_SEC ?? 15 * 60)
 // When "1", allow public self-signup via POST /auth/register (used by the
-// TASKIT welcome onboarding flow). Off by default — admin-only account
+// Pinote welcome onboarding flow). Off by default — admin-only account
 // creation remains the gate for internal team membership.
 const ALLOW_PUBLIC_SIGNUP = process.env.ALLOW_PUBLIC_SIGNUP === '1'
 // Welcome credits granted to a newly self-registered user (seconds).
@@ -50,6 +52,11 @@ authRouter.post('/login', async (c) => {
     return c.json({ error: 'Username atau password salah' }, 401)
   }
 
+  if (!user.passwordHash) {
+    await recordFailedLogin(rateLimitKey)
+    return c.json({ error: 'Akun ini menggunakan Google. Silakan masuk dengan Google.' }, 401)
+  }
+
   const ok = await verifyPassword(parsed.data.password, user.passwordHash)
   if (!ok) {
     await recordFailedLogin(rateLimitKey)
@@ -67,6 +74,41 @@ authRouter.post('/login', async (c) => {
     isAdmin: user.isAdmin,
     displayName: user.displayName,
   })
+})
+
+authRouter.post('/google', async (c) => {
+  try {
+    const { idToken } = await c.req.json()
+    if (!idToken) return c.json({ error: 'Token tidak ditemukan' }, 400)
+
+    const googleUser = await verifyGoogleToken(idToken)
+
+    let user = await findUserByEmail(googleUser.email)
+    if (!user) {
+      const username = googleUser.email.split('@')[0].replace(/[^a-zA-Z0-9_.-]/g, '')
+      user = await createUser({
+        username,
+        email: googleUser.email,
+        displayName: googleUser.name,
+        creditSeconds: 600,
+      })
+    }
+
+    const { token } = await createSession(user.id)
+    const secure = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging'
+    c.header('Set-Cookie', buildSessionCookie(token, { secure }))
+
+    return c.json({
+      id: user.id,
+      username: user.username,
+      isAdmin: user.isAdmin,
+      displayName: user.displayName,
+      creditSeconds: user.creditSeconds,
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Gagal masuk dengan Google'
+    return c.json({ error: msg }, 401)
+  }
 })
 
 authRouter.post('/logout', async (c) => {

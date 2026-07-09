@@ -5,7 +5,8 @@ export const users = pgTable(
   {
     id: text('id').primaryKey(),
     username: text('username').notNull().unique(),
-    passwordHash: text('password_hash').notNull(),
+    email: text('email').unique(),
+    passwordHash: text('password_hash'),
     isAdmin: boolean('is_admin').notNull().default(false),
     creditSeconds: integer('credit_seconds').notNull().default(0),
     // Display name used to match AI-extracted action item owners to a real user.
@@ -17,6 +18,7 @@ export const users = pgTable(
   },
   (t) => ({
     taskTokenIdx: uniqueIndex('users_task_share_token_idx').on(t.taskShareToken),
+    emailIdx: uniqueIndex('users_email_idx').on(t.email),
   })
 )
 
@@ -53,6 +55,7 @@ export const jobs = pgTable(
     shareToken: text('share_token'),
     transcript: jsonb('transcript').$type<TranscriptPayload | null>(),
     speakerNames: jsonb('speaker_names').$type<Record<string, string>>().notNull().default({}),
+    attendance: jsonb('attendance').$type<string[]>().default([]),
     errorMessage: text('error_message'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     uploadedAt: timestamp('uploaded_at', { withTimezone: true }),

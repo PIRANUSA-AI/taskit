@@ -11,7 +11,7 @@ shareRouter.get('/:token', async (c) => {
 
   if (!job) {
     return c.html(renderPage({
-      title: 'Link bagikan tidak ditemukan - TASKIT',
+      title: 'Link bagikan tidak ditemukan - Pinote',
       heading: 'Link bagikan tidak ditemukan',
       body: '<p>Link ini tidak valid atau sudah tidak tersedia.</p>',
       robots: 'noindex',
@@ -22,7 +22,7 @@ shareRouter.get('/:token', async (c) => {
 
   const transcript = job.transcript as TranscriptPayload | null
   const meetingTitle = job.title?.trim() || job.filename.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ')
-  const pageTitle = `${meetingTitle} - TASKIT`
+  const pageTitle = `${meetingTitle} - Pinote`
 
   if (job.status !== 'completed' || !transcript) {
     return c.html(renderPage({
@@ -147,7 +147,7 @@ function renderPage(args: {
   image: string | null
   shareUrl?: string
 }): string {
-  const description = args.description ?? 'TASKIT public transcript'
+  const description = args.description ?? 'Pinote public transcript'
   const url = args.shareUrl ?? ''
   return `<!doctype html>
 <html lang="id">
@@ -162,7 +162,7 @@ function renderPage(args: {
     <meta property="og:url" content="${escapeHtml(url)}" />
     <meta property="og:title" content="${escapeHtml(args.heading)}" />
     <meta property="og:description" content="${escapeHtml(description)}" />
-    <meta property="og:site_name" content="TASKIT" />
+    <meta property="og:site_name" content="Pinote" />
     ${args.image ? `<meta property="og:image" content="${escapeHtml(args.image)}" />` : ''}
 
     <!-- Twitter Card -->
@@ -234,7 +234,7 @@ function renderPage(args: {
   <body>
     <header>
       <div>
-        <span>TASKIT</span>
+        <span>Pinote</span>
         <small>Public Transcript</small>
       </div>
     </header>

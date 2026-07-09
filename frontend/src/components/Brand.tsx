@@ -26,8 +26,10 @@ export function BrandMark({ size = 32, rounded, className, animated = false }: B
       }}
     >
       <svg width={size * 0.56} height={size * 0.56} viewBox="0 0 32 32" fill="none" style={{ display: 'block' }}>
-        <rect x="6" y="7" width="20" height="4.5" rx="2.25" fill="#FFFFFF" />
-        <rect x="13" y="7" width="6" height="18" rx="3" fill="#FFFFFF" />
+        <rect x="4" y="5" width="24" height="24" rx="3" stroke="#FFFFFF" strokeWidth="2" fill="none" />
+        <rect x="4" y="5" width="24" height="7" rx="3" fill="rgba(255,255,255,0.15)" />
+        <line x1="10" y1="9" x2="22" y2="9" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
+        <text x="16" y="22" textAnchor="middle" fill="#FFFFFF" fontSize="12" fontWeight="bold" fontFamily="serif" style={{ fontStyle: 'italic' }}>π</text>
       </svg>
     </Wrap>
   )
@@ -49,7 +51,7 @@ export function Brand({ size = 32, showWord = true, wordClassName, to }: BrandPr
           className={`font-display font-semibold tracking-tight text-navy ${wordClassName ?? ''}`}
           style={{ fontSize: size * 0.5 }}
         >
-          TASKIT
+          Pinote
         </span>
       )}
     </span>

@@ -110,7 +110,7 @@ async function main() {
     console.log(`Re-queued ${recovered.length} in-flight job(s):`, recovered.map((job) => job.id))
   }
 
-  console.log(`TASKIT worker ${workerId} polling every ${pollMs}ms`)
+  console.log(`Pinote worker ${workerId} polling every ${pollMs}ms`)
   for (;;) {
     try {
       await tick()

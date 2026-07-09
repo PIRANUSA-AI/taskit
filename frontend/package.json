@@ -1,5 +1,5 @@
 {
-  "name": "audio-to-text-frontend",
+  "name": "pinote-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,6 +13,7 @@
     "@fontsource/geist-sans": "^5.1.1",
     "@phosphor-icons/react": "^2.1.7",
     "eruda": "^3.4.3",
+    "firebase": "^12.15.0",
     "framer-motion": "^11.15.0",
     "lottie-react": "^2.4.0",
     "react": "^18.3.1",

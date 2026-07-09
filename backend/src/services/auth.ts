@@ -21,17 +21,19 @@ export function generateSessionToken(): string {
 
 export async function createUser(input: {
   username: string
-  password: string
+  password?: string
+  email?: string
   isAdmin?: boolean
   displayName?: string
   creditSeconds?: number
 }): Promise<User> {
-  const passwordHash = await hashPassword(input.password)
+  const passwordHash = input.password ? await hashPassword(input.password) : null
   const [user] = await db
     .insert(users)
     .values({
       id: nanoid(),
       username: input.username,
+      email: input.email,
       passwordHash,
       isAdmin: input.isAdmin ?? false,
       displayName: input.displayName,
@@ -43,6 +45,11 @@ export async function createUser(input: {
 
 export async function findUserByUsername(username: string): Promise<User | null> {
   const rows = await db.select().from(users).where(eq(users.username, username)).limit(1)
+  return rows[0] ?? null
+}
+
+export async function findUserByEmail(email: string): Promise<User | null> {
+  const rows = await db.select().from(users).where(eq(users.email, email)).limit(1)
   return rows[0] ?? null
 }
 

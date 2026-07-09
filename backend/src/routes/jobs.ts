@@ -21,6 +21,8 @@ const createSchema = z.object({
 
 export const jobsRouter = new Hono<AppEnv>()
 
+jobsRouter.use('*', requireAuth)
+
 jobsRouter.get('/shared/:token', async (c) => {
   const token = c.req.param('token')
   const [job] = await db.select().from(jobs).where(eq(jobs.shareToken, token)).limit(1)
@@ -30,8 +32,6 @@ jobsRouter.get('/shared/:token', async (c) => {
   const items = job.status === 'completed' ? await loadActionItems(job.id) : []
   return c.json(toJobDetail(job, false, undefined, items))
 })
-
-jobsRouter.use('*', requireAuth)
 
 jobsRouter.post('/', async (c) => {
   const body = await c.req.json().catch(() => null)

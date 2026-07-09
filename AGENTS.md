@@ -1,6 +1,6 @@
 # AGENTS.md
 
-High-signal context for AI agents working in this repo (ALTO — meeting transcript app). Verify against the code before trusting anything below.
+High-signal context for AI agents working in this repo (Pinote by Contrivent — meeting transcript app). Verify against the code before trusting anything below.
 
 ## Toolchain truth (don't get fooled)
 

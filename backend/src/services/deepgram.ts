@@ -549,6 +549,24 @@ function extractAudioChunk(buffer: Buffer, startSec: number, durationSec: number
   })
 }
 
+async function getUserKeywords(): Promise<string[]> {
+  try {
+    const rows = await db
+      .select({ displayName: users.displayName, username: users.username, nameAliases: users.nameAliases })
+      .from(users)
+    const names = new Set<string>()
+    for (const u of rows) {
+      if (u.displayName) names.add(u.displayName)
+      if (u.username) names.add(u.username)
+      const aliases = (u.nameAliases ?? []) as string[]
+      for (const a of aliases) if (a) names.add(a)
+    }
+    return [...names]
+  } catch {
+    return []
+  }
+}
+
 interface DgApiResult {
   words: DgWord[]
   detectedLanguage: string | undefined
@@ -575,8 +593,9 @@ async function callDeepgram(
     params.set('language', language)
   }
 
-  for (const kw of DEEPGRAM_KEYWORDS) {
-    params.append('keywords', `${kw}:2`)
+  const userKws = await getUserKeywords()
+  for (const kw of [...DEEPGRAM_KEYWORDS, ...userKws]) {
+    if (kw) params.append('keywords', `${kw}:3`)
   }
 
   const res = await fetch(`${DEEPGRAM_BASE}?${params}`, {

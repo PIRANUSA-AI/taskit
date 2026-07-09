@@ -17,7 +17,9 @@ export function useJobPolling(jobId: string | null, opts?: { intervalMs?: number
         if (cancelled) return
         setJob(data)
         setError(null)
-        if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') return
+        const done = data.status === 'failed' || data.status === 'cancelled'
+        const fullyDone = data.status === 'completed' && data.transcript?.summary && data.transcript.summary.length > 0
+        if (done || fullyDone) return
       } catch (err) {
         if (cancelled) return
         setError(err instanceof Error ? err.message : 'Gagal mengambil status')

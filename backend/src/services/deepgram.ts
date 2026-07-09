@@ -595,7 +595,7 @@ async function callDeepgram(
 
   const userKws = await getUserKeywords()
   for (const kw of [...DEEPGRAM_KEYWORDS, ...userKws]) {
-    if (kw) params.append('keywords', `${kw}:3`)
+    if (kw) params.append('keyterm', kw)
   }
 
   const res = await fetch(`${DEEPGRAM_BASE}?${params}`, {

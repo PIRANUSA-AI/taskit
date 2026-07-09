@@ -1,20 +1,16 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Eye, EyeSlash, ArrowRight, ArrowLeft } from '@phosphor-icons/react'
+import { ArrowLeft } from '@phosphor-icons/react'
 import { useAuth } from '../hooks/useAuth'
 import { ApiError, api } from '../lib/api'
 import { BrandMark } from '../components/Brand'
 import { signInWithGoogle } from '../lib/firebase'
 
 export default function Login() {
-  const { user, login, loading, refresh } = useAuth()
+  const { user, loading, refresh } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -23,21 +19,6 @@ export default function Login() {
   useEffect(() => {
     if (!loading && user) navigate(from, { replace: true })
   }, [user, loading, navigate, from])
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setSubmitting(true)
-    try {
-      await login(username.trim(), password)
-      navigate(from, { replace: true })
-    } catch (err) {
-      if (err instanceof ApiError) setError(err.message)
-      else setError('Gagal masuk. Coba lagi.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
 
   const handleGoogleSignIn = async () => {
     setError(null)
@@ -103,83 +84,15 @@ export default function Login() {
           {googleLoading ? 'Memproses...' : 'Masuk dengan Google'}
         </button>
 
-        <div className="my-5 flex items-center gap-3">
-          <span className="flex-1 h-px bg-slate-200" />
-          <span className="text-[11px] font-medium text-slate-400 uppercase">atau</span>
-          <span className="flex-1 h-px bg-slate-200" />
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="username" className="label">
-              Username
-            </label>
-            <input
-              id="username"
-              type="text"
-              autoComplete="username"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="input"
-              placeholder="contoh: dinda"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="label">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input pr-12"
-                placeholder="••••••••"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 grid place-items-center w-9 h-9 rounded-lg text-slate-400 hover:bg-paper hover:text-navy transition-colors"
-                aria-label={showPassword ? 'Sembunyikan password' : 'Lihat password'}
-              >
-                {showPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
-
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700"
-            >
-              {error}
-            </motion.div>
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting || !username || !password}
-            className="btn-primary w-full mt-2"
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700"
           >
-            {submitting ? (
-              'Memverifikasi…'
-            ) : (
-              <>
-                Masuk
-                <ArrowRight weight="bold" size={16} />
-              </>
-            )}
-          </button>
-        </form>
+            {error}
+          </motion.div>
+        )}
 
         <Link
           to="/welcome"

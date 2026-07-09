@@ -28,6 +28,11 @@ function ensureInit() {
   initialized = true
 }
 
+function getAllowedEmails(): string[] {
+  const raw = process.env.WHITELIST_EMAILS ?? ''
+  return raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+}
+
 export interface FirebaseUser {
   uid: string
   email: string
@@ -50,8 +55,12 @@ export async function verifyGoogleToken(idToken: string): Promise<FirebaseUser> 
   }
 
   const domain = email.split('@')[1]?.toLowerCase()
-  if (!domain || !ALLOWED_DOMAINS.includes(domain)) {
-    throw new Error(`Email ${email} tidak diizinkan. Hanya @piranusa.com atau @contrivent.com`)
+  const whitelisted = getAllowedEmails().includes(email.toLowerCase())
+
+  if (!whitelisted) {
+    if (!domain || !ALLOWED_DOMAINS.includes(domain)) {
+      throw new Error(`Email ${email} tidak diizinkan. Hanya @piranusa.com atau @contrivent.com`)
+    }
   }
 
   return {

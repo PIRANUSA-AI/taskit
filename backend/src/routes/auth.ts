@@ -37,43 +37,7 @@ const loginSchema = z.object({
 export const authRouter = new Hono<AppEnv>()
 
 authRouter.post('/login', async (c) => {
-  const body = await c.req.json().catch(() => null)
-  const parsed = loginSchema.safeParse(body)
-  if (!parsed.success) return c.json({ error: 'Invalid input' }, 400)
-
-  const rateLimitKey = loginRateLimitKey(c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'local', parsed.data.username)
-  if (await isLoginRateLimited(rateLimitKey)) {
-    return c.json({ error: 'Terlalu banyak percobaan login. Coba lagi nanti.' }, 429)
-  }
-
-  const user = await findUserByUsername(parsed.data.username.trim())
-  if (!user) {
-    await recordFailedLogin(rateLimitKey)
-    return c.json({ error: 'Username atau password salah' }, 401)
-  }
-
-  if (!user.passwordHash) {
-    await recordFailedLogin(rateLimitKey)
-    return c.json({ error: 'Akun ini menggunakan Google. Silakan masuk dengan Google.' }, 401)
-  }
-
-  const ok = await verifyPassword(parsed.data.password, user.passwordHash)
-  if (!ok) {
-    await recordFailedLogin(rateLimitKey)
-    return c.json({ error: 'Username atau password salah' }, 401)
-  }
-
-  const { token } = await createSession(user.id)
-  const secure = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging'
-  c.header('Set-Cookie', buildSessionCookie(token, { secure }))
-  await clearFailedLogin(rateLimitKey)
-
-  return c.json({
-    id: user.id,
-    username: user.username,
-    isAdmin: user.isAdmin,
-    displayName: user.displayName,
-  })
+  return c.json({ error: 'Login dengan password sudah ditutup. Silakan masuk dengan Google.' }, 403)
 })
 
 authRouter.post('/google', async (c) => {
@@ -126,40 +90,7 @@ const registerSchema = z.object({
 })
 
 authRouter.post('/register', async (c) => {
-  if (!ALLOW_PUBLIC_SIGNUP) {
-    return c.json({ error: 'Pendaftaran ditutup. Hubungi admin untuk akun.' }, 403)
-  }
-
-  const body = await c.req.json().catch(() => null)
-  const parsed = registerSchema.safeParse(body)
-  if (!parsed.success) {
-    return c.json({ error: parsed.error.issues[0]?.message ?? 'Input tidak valid' }, 400)
-  }
-
-  const existing = await findUserByUsername(parsed.data.username)
-  if (existing) return c.json({ error: 'Username sudah dipakai' }, 409)
-
-  const user = await createUser({
-    username: parsed.data.username.trim(),
-    password: parsed.data.password,
-    displayName: parsed.data.displayName?.trim() || parsed.data.username.trim(),
-    creditSeconds: SIGNUP_CREDIT_SECONDS,
-  })
-
-  const { token } = await createSession(user.id)
-  const secure = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging'
-  c.header('Set-Cookie', buildSessionCookie(token, { secure }))
-
-  return c.json(
-    {
-      id: user.id,
-      username: user.username,
-      isAdmin: user.isAdmin,
-      displayName: user.displayName,
-      creditSeconds: user.creditSeconds,
-    },
-    201
-  )
+  return c.json({ error: 'Pendaftaran sudah ditutup. Silakan masuk dengan Google.' }, 403)
 })
 
 authRouter.get('/signup-status', (c) => {

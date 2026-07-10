@@ -66,9 +66,7 @@ export function InstallBanner() {
           className="fixed top-0 inset-x-0 z-50 px-4 pt-3 pb-2 md:top-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-auto"
         >
           <div className="flex items-center gap-3 rounded-2xl bg-navy text-white shadow-xl px-4 py-3 md:min-w-[320px]">
-            <div className="w-9 h-9 rounded-xl bg-white/10 grid place-items-center flex-shrink-0">
-              <span className="text-sm font-bold">A</span>
-            </div>
+            <img src="/icon-512.svg" alt="" className="w-9 h-9 rounded-xl flex-shrink-0" />
             <div className="flex-1 min-w-0">
               {showIOS ? (
                 <>

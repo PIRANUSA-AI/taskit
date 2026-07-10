@@ -17,20 +17,12 @@ export function BrandMark({ size = 32, rounded, className, animated = false }: B
         width: size,
         height: size,
         borderRadius: r,
-        background: 'linear-gradient(140deg, #1E1B4B 0%, #312E81 55%, #4F46E5 100%)',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12), 0 2px 6px rgba(30,27,75,0.18)',
-        display: 'grid',
-        placeItems: 'center',
         position: 'relative',
         overflow: 'hidden',
       }}
     >
-      <svg width={size * 0.56} height={size * 0.56} viewBox="0 0 32 32" fill="none" style={{ display: 'block' }}>
-        <rect x="4" y="5" width="24" height="24" rx="3" stroke="#FFFFFF" strokeWidth="2" fill="none" />
-        <rect x="4" y="5" width="24" height="7" rx="3" fill="rgba(255,255,255,0.15)" />
-        <line x1="10" y1="9" x2="22" y2="9" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
-        <text x="16" y="22" textAnchor="middle" fill="#FFFFFF" fontSize="12" fontWeight="bold" fontFamily="serif" style={{ fontStyle: 'italic' }}>π</text>
-      </svg>
+      <img src="/icon-512.svg" alt="" aria-hidden="true" style={{ width: '100%', height: '100%', display: 'block' }} />
     </Wrap>
   )
 }

@@ -13,6 +13,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: 'include',
     ...init,
     headers: {
+      Accept: 'application/json',
       ...(init?.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
       ...init?.headers,
     },
@@ -131,11 +132,49 @@ export interface JobDetail {
   completedAt: string | null
   cancelledAt?: string | null
   shareToken?: string | null
+  shareTokenMom?: string | null
 }
 
+export type ShareKind = 'internal' | 'stakeholder'
+
 export interface ShareJobResponse {
+  kind: ShareKind
   shareToken: string
   sharePath: string
+}
+
+// Internal (full) shared job, returned by the public GET /share/:token endpoint.
+export interface SharedJobDetail {
+  shareKind: 'internal'
+  id: string
+  filename: string
+  title: string | null
+  mimeType: string
+  durationSec: number | null
+  language: string
+  status: string
+  transcript: TranscriptPayload | null
+  speakerNames: Record<string, string>
+  actionItems: ActionItem[]
+  createdAt: string
+  completedAt: string | null
+  hasAudio: boolean
+}
+
+// Stakeholder Minutes-of-Meeting view, returned by GET /share/mom/:token.
+export interface SharedMomDetail {
+  shareKind: 'stakeholder'
+  id: string
+  filename: string
+  title: string | null
+  createdAt: string
+  completedAt: string | null
+  durationSec: number | null
+  language: string
+  speakerNames: Record<string, string>
+  speakerCount: number
+  summary: string
+  actionItems: ActionItem[]
 }
 
 export interface JobStatusPayload {

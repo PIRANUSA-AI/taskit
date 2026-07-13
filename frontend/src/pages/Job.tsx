@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, ArrowClockwise, Check, ShareNetwork, Trash, WarningCircle, XCircle } from '@phosphor-icons/react'
-import { ApiError, api, type ActionItem, type JobDetail, type ShareJobResponse } from '../lib/api'
+import { ArrowLeft, ArrowClockwise, ShareNetwork, Trash, WarningCircle, XCircle } from '@phosphor-icons/react'
+import { ApiError, api, type ActionItem, type JobDetail } from '../lib/api'
 import { TranscriptViewer } from '../components/TranscriptViewer'
 import { ActionItemsPanel } from '../components/ActionItemsPanel'
 import { AudioPlayer } from '../components/AudioPlayer'
 import { MiniPlayer } from '../components/MiniPlayer'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { ShareModal } from '../components/ShareModal'
 import { useToast } from '../components/Toast'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { TitleScrambler } from '../components/TitleScrambler'
@@ -20,8 +21,7 @@ export default function Job() {
   const [initial, setInitial] = useState<JobDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [sharing, setSharing] = useState(false)
-  const [shared, setShared] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [audioLoading, setAudioLoading] = useState(false)
@@ -132,36 +132,8 @@ export default function Job() {
     }
   }
 
-  const handleShare = async () => {
-    if (!id || !job) return
-    setSharing(true)
-    try {
-      const data = job.shareToken
-        ? { shareToken: job.shareToken, sharePath: `/share/${job.shareToken}` }
-        : await api.post<ShareJobResponse>(`/jobs/${id}/share`)
-      const shareUrl = `${window.location.origin}${data.sharePath}`
-
-      setInitial((current) => (current ? { ...current, shareToken: data.shareToken } : current))
-
-      if (navigator.share) {
-        await navigator.share({
-          title: job.filename,
-          text: 'Transkrip Rekapin',
-          url: shareUrl,
-        })
-      } else {
-        await navigator.clipboard.writeText(shareUrl)
-      }
-
-      setShared(true)
-      setTimeout(() => setShared(false), 1800)
-    } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        toast(err instanceof Error ? err.message : 'Gagal membuat link bagikan', 'error')
-      }
-    } finally {
-      setSharing(false)
-    }
+  const handleTokensChange = (next: { shareToken: string | null; shareTokenMom: string | null }) => {
+    setInitial((cur) => (cur ? { ...cur, ...next } : cur))
   }
 
   if (error) {
@@ -219,12 +191,11 @@ export default function Job() {
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
-              onClick={handleShare}
-              disabled={sharing}
-              className="grid place-items-center w-9 h-9 rounded-lg text-ink-muted hover:text-navy hover:bg-slate-100 disabled:opacity-40"
-              title={shared ? 'Link disalin' : 'Bagikan'}
+              onClick={() => setShareOpen(true)}
+              className="grid place-items-center w-9 h-9 rounded-lg text-ink-muted hover:text-navy hover:bg-slate-100"
+              title="Bagikan"
             >
-              {shared ? <Check size={18} weight="bold" /> : <ShareNetwork size={18} />}
+              <ShareNetwork size={18} />
             </button>
             <button
               onClick={() => handleDelete()}
@@ -392,6 +363,18 @@ export default function Job() {
         onConfirm={() => { setConfirmDelete(false); handleDelete(true) }}
         onCancel={() => setConfirmDelete(false)}
       />
+
+      {job && (
+        <ShareModal
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          jobId={job.id}
+          filename={job.filename}
+          initialInternal={job.shareToken}
+          initialStakeholder={job.shareTokenMom}
+          onTokensChange={handleTokensChange}
+        />
+      )}
     </div>
   )
 }

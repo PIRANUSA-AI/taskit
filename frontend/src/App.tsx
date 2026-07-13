@@ -19,6 +19,7 @@ const Tugas = lazy(() => import('./pages/Tugas'))
 const Profil = lazy(() => import('./pages/Profil'))
 const Job = lazy(() => import('./pages/Job'))
 const SharedJob = lazy(() => import('./pages/SharedJob'))
+const SharedMoM = lazy(() => import('./pages/SharedMoM'))
 const MyTasks = lazy(() => import('./pages/MyTasks'))
 const Admin = lazy(() => import('./pages/Admin'))
 const Playground = lazy(() => import('./pages/Playground'))
@@ -62,6 +63,7 @@ function AnimatedRoutes() {
             <Route path="/welcome" element={<Welcome />} />
             <Route path="/login" element={<Login />} />
             <Route path="/share/:token" element={<SharedJob />} />
+            <Route path="/share/mom/:token" element={<SharedMoM />} />
             <Route path="/tasks/:token" element={<MyTasks />} />
             <Route
               path="/riwayat"

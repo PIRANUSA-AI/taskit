@@ -53,7 +53,12 @@ export const jobs = pgTable(
     language: text('language').notNull().default('auto'),
     status: text('status').notNull(),
     storageKey: text('storage_key'),
+    // Internal (full) public share token — grants transcript + audio + summary.
     shareToken: text('share_token'),
+    // Stakeholder share token — grants only the Minutes-of-Meeting view
+    // (summary + action items). Never exposes transcript or audio. Kept on a
+    // separate token so a stakeholder link cannot be mutated into a full one.
+    shareTokenMom: text('share_token_mom'),
     transcript: jsonb('transcript').$type<TranscriptPayload | null>(),
     speakerNames: jsonb('speaker_names').$type<Record<string, string>>().notNull().default({}),
     attendance: jsonb('attendance').$type<string[]>().default([]),
@@ -69,6 +74,7 @@ export const jobs = pgTable(
     userIdx: index('jobs_user_idx').on(t.userId),
     createdIdx: index('jobs_created_idx').on(t.createdAt),
     shareTokenIdx: uniqueIndex('jobs_share_token_idx').on(t.shareToken),
+    shareTokenMomIdx: uniqueIndex('jobs_share_token_mom_idx').on(t.shareTokenMom),
   })
 )
 

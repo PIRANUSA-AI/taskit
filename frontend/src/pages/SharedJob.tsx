@@ -1,35 +1,36 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams, useNavigate } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, WarningCircle } from '@phosphor-icons/react'
-import { ApiError, api, type JobDetail } from '../lib/api'
+import { ApiError, api, type SharedJobDetail } from '../lib/api'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { TranscriptViewer } from '../components/TranscriptViewer'
 import { TitleScrambler } from '../components/TitleScrambler'
-import { formatBytes, formatDuration, formatRelativeTime } from '../lib/format'
+import { formatDuration, formatRelativeTime } from '../lib/format'
 import { BrandMark } from '../components/Brand'
 
 export default function SharedJob() {
   const { token } = useParams<{ token: string }>()
-  const navigate = useNavigate()
-  const [job, setJob] = useState<JobDetail | null>(null)
+  const [job, setJob] = useState<SharedJobDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!token) return
     setError(null)
     api
-      .get<JobDetail>(`/jobs/shared/${token}`)
-      .then(setJob)
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) {
-          navigate('/login', { state: { from: { pathname: `/share/${token}` } } })
-          return
+      .get<SharedJobDetail>(`/share/${token}`)
+      .then((data) => {
+        setJob(data)
+        if (data.hasAudio) {
+          api.get<{ url: string }>(`/share/${token}/audio`).then((r) => setAudioUrl(r.url)).catch(() => {})
         }
+      })
+      .catch((err) => {
         if (err instanceof ApiError) setError(err.message)
         else setError('Gagal memuat link bagikan')
       })
-  }, [token, navigate])
+  }, [token])
 
   if (error) {
     return (
@@ -39,7 +40,7 @@ export default function SharedJob() {
           <p className="mt-3 font-medium text-navy">{error}</p>
           <Link to="/welcome" className="btn-ghost mt-6 inline-flex">
             <ArrowLeft size={16} />
-            Beranda Rekapin
+            Beranda
           </Link>
         </div>
       </div>
@@ -48,17 +49,17 @@ export default function SharedJob() {
 
   if (!job) return <LoadingScreen />
 
-  const isReady = job.status === 'completed' && job.transcript
+  const transcript = job.transcript
 
   return (
     <div className="min-h-[100dvh] bg-paper">
-      <header className="border-b border-slate-200/70 bg-paper/85 backdrop-blur-xl">
+      <header className="border-b border-slate-200/70 bg-paper/85 backdrop-blur-xl sticky top-0 z-10">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 md:px-8">
           <Link to="/welcome" className="flex items-center gap-2.5">
             <BrandMark size={28} />
-            <span className="text-[15px] font-semibold tracking-tight text-navy">Rekapin</span>
+            <span className="text-[15px] font-semibold tracking-tight text-navy">Pinote</span>
           </Link>
-          <span className="text-xs font-medium text-slate-400">Link publik</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500 bg-indigo-50 px-2 py-1 rounded">Link Internal</span>
         </div>
       </header>
 
@@ -70,20 +71,16 @@ export default function SharedJob() {
         >
           <div className="min-w-0">
             <h1
-              className="text-2xl md:text-3xl tracking-tightest font-semibold leading-tight truncate text-navy"
+              className="text-2xl md:text-3xl tracking-tightest font-semibold leading-tight text-navy"
               title={job.filename}
             >
-              <TitleScrambler
-                from={job.filename}
-                to={job.status === 'completed' ? job.title : null}
-              />
+              <TitleScrambler from={job.filename} to={job.title} />
             </h1>
             <p className="mt-2 text-xs text-ink-muted tabular">
               {[
                 formatRelativeTime(job.createdAt),
                 job.durationSec ? formatDuration(job.durationSec) : null,
-                job.sizeBytes ? formatBytes(job.sizeBytes) : null,
-                job.transcript?.speakerCount ? `${job.transcript.speakerCount} pembicara` : null,
+                transcript?.speakerCount ? `${transcript.speakerCount} pembicara` : null,
               ]
                 .filter(Boolean)
                 .join(' | ')}
@@ -91,43 +88,28 @@ export default function SharedJob() {
           </div>
         </motion.div>
 
-        <div className="mt-8">
-          {isReady ? (
+        <div className="mt-6 space-y-6">
+          {audioUrl && (
+            <div className="card p-4">
+              <audio controls preload="metadata" className="w-full">
+                <source src={audioUrl} />
+              </audio>
+            </div>
+          )}
+
+          {transcript ? (
             <TranscriptViewer
-              transcript={job.transcript!}
+              transcript={transcript}
               filename={job.filename}
               jobId={job.id}
               actionItems={job.actionItems}
               speakerNames={job.speakerNames}
               readOnly
             />
-          ) : job.status === 'failed' || job.status === 'cancelled' ? (
-            <div className="card p-8 text-center">
-              <WarningCircle weight="duotone" size={48} className="mx-auto text-red-500" />
-              <h2 className="mt-4 text-lg font-semibold">
-                {job.status === 'cancelled' ? 'Transkrip dibatalkan' : 'Transkrip gagal'}
-              </h2>
-              <p className="mt-2 text-sm text-ink-muted max-w-md mx-auto break-words">
-                {job.status === 'cancelled'
-                  ? 'Link ini tidak lagi menampilkan transkrip karena job dibatalkan.'
-                  : job.error || 'Terjadi kesalahan tak dikenal.'}
-              </p>
-            </div>
           ) : (
-            <div className="card p-12 text-center">
-              <div className="flex items-end justify-center gap-1 h-10 mb-4">
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <span
-                    key={i}
-                    className="w-1.5 bg-navy rounded-full animate-pulse-ring"
-                    style={{
-                      animationDelay: `${i * 120}ms`,
-                      height: `${20 + (i % 3) * 12}px`,
-                    }}
-                  />
-                ))}
-              </div>
-              <p className="text-sm text-ink-muted">Transkrip belum selesai diproses.</p>
+            <div className="card p-8 text-center">
+              <WarningCircle weight="duotone" size={48} className="mx-auto text-amber-500" />
+              <p className="mt-3 text-sm text-ink-muted">Transkrip belum tersedia untuk link ini.</p>
             </div>
           )}
         </div>

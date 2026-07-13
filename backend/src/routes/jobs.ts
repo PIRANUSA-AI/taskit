@@ -270,11 +270,14 @@ jobsRouter.post('/:id/retry', requireAuth, async (c) => {
 jobsRouter.post('/:id/share', async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
+  const body = await c.req.json().catch(() => ({} as { kind?: string }))
+  const kind: 'internal' | 'stakeholder' = body?.kind === 'stakeholder' ? 'stakeholder' : 'internal'
 
   const [job] = await db
     .select({
       id: jobs.id,
       shareToken: jobs.shareToken,
+      shareTokenMom: jobs.shareTokenMom,
     })
     .from(jobs)
     .where(and(eq(jobs.id, id), eq(jobs.userId, user.id)))
@@ -282,18 +285,50 @@ jobsRouter.post('/:id/share', async (c) => {
 
   if (!job) return c.json({ error: 'Job tidak ditemukan' }, 404)
 
-  if (job.shareToken) {
-    return c.json({ shareToken: job.shareToken, sharePath: `/share/${job.shareToken}` })
+  if (kind === 'internal') {
+    if (job.shareToken) {
+      return c.json({ kind, shareToken: job.shareToken, sharePath: `/share/${job.shareToken}` })
+    }
+    const shareToken = nanoid(32)
+    const [updated] = await db
+      .update(jobs)
+      .set({ shareToken })
+      .where(and(eq(jobs.id, id), eq(jobs.userId, user.id)))
+      .returning({ shareToken: jobs.shareToken })
+    return c.json({ kind, shareToken: updated.shareToken, sharePath: `/share/${updated.shareToken}` })
   }
 
-  const shareToken = nanoid(32)
-  const [updated] = await db
+  // stakeholder (MoM-only) link
+  if (job.shareTokenMom) {
+    return c.json({ kind, shareToken: job.shareTokenMom, sharePath: `/share/mom/${job.shareTokenMom}` })
+  }
+  const momToken = nanoid(32)
+  const [updatedMom] = await db
     .update(jobs)
-    .set({ shareToken })
+    .set({ shareTokenMom: momToken })
     .where(and(eq(jobs.id, id), eq(jobs.userId, user.id)))
-    .returning({ shareToken: jobs.shareToken })
+    .returning({ shareTokenMom: jobs.shareTokenMom })
+  return c.json({ kind, shareToken: updatedMom.shareTokenMom, sharePath: `/share/mom/${updatedMom.shareTokenMom}` })
+})
 
-  return c.json({ shareToken: updated.shareToken, sharePath: `/share/${updated.shareToken}` })
+// Revoke a share link. Query: ?kind=internal|stakeholder (default internal).
+jobsRouter.delete('/:id/share', async (c) => {
+  const user = c.get('user')
+  const id = c.req.param('id')
+  const kind: 'internal' | 'stakeholder' = c.req.query('kind') === 'stakeholder' ? 'stakeholder' : 'internal'
+
+  const [job] = await db
+    .select({ id: jobs.id })
+    .from(jobs)
+    .where(and(eq(jobs.id, id), eq(jobs.userId, user.id)))
+    .limit(1)
+
+  if (!job) return c.json({ error: 'Job tidak ditemukan' }, 404)
+
+  const clear = kind === 'stakeholder' ? { shareTokenMom: null } : { shareToken: null }
+  await db.update(jobs).set(clear).where(and(eq(jobs.id, id), eq(jobs.userId, user.id)))
+
+  return c.json({ ok: true, kind })
 })
 
 // --- Action items: bulk edit (upsert / update / delete) ---------------------
@@ -475,6 +510,7 @@ function toJobDetail(
     completedAt: job.completedAt,
     cancelledAt: job.cancelledAt,
     shareToken: includeShareToken ? job.shareToken : undefined,
+    shareTokenMom: includeShareToken ? job.shareTokenMom : undefined,
     storageKey: job.storageKey,
   }
 }

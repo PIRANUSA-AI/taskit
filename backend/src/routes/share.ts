@@ -189,10 +189,22 @@ shareRouter.get('/:token', async (c) => {
             window.__loadShareAudio=function(){
               if(!wrap||wrap.dataset.loaded)return;
               wrap.dataset.loaded='1';
-              wrap.innerHTML='<p class="meta">Memuat rekaman&hellip;</p>';
+              wrap.textContent='Memuat rekaman\u2026';
               fetch(${JSON.stringify(`/share/${token}/audio`)})
                 .then(function(r){return r.json()})
-                .then(function(d){ wrap.innerHTML='<audio controls autoplay preload="metadata" src="'+d.url+'"></audio>'; })
+                .then(function(d){
+                  if(!d||!d.url){ wrap.innerHTML='<p class="meta">Rekaman tidak tersedia.</p>'; return; }
+                  wrap.innerHTML='';
+                  var a=document.createElement('audio');
+                  a.controls=true;
+                  a.preload='metadata';
+                  a.style.width='100%';
+                  a.src=d.url;
+                  wrap.appendChild(a);
+                  a.load();
+                  var p=a.play();
+                  if(p&&p.catch){p.catch(function(){ /* autoplay blocked; user presses play */ });}
+                })
                 .catch(function(){ wrap.innerHTML='<p class="meta">Rekaman tidak dapat dimuat. Coba segarkan halaman.</p>'; });
             };
           })();

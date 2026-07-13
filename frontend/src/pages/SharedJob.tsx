@@ -91,9 +91,7 @@ export default function SharedJob() {
         <div className="mt-6 space-y-6">
           {audioUrl && (
             <div className="card p-4">
-              <audio controls preload="metadata" className="w-full">
-                <source src={audioUrl} />
-              </audio>
+              <audio key={audioUrl} controls preload="metadata" className="w-full" src={audioUrl} />
             </div>
           )}
 

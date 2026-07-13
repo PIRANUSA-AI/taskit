@@ -37,10 +37,6 @@ export default defineConfig({
         target: 'http://localhost:3000',
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
-      // Public share endpoints live on the backend under /share (no rewrite).
-      '/share': {
-        target: 'http://localhost:3000',
-      },
     },
   },
   build: {

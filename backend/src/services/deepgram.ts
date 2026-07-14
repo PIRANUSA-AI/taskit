@@ -35,14 +35,38 @@ const GLM_MODEL = process.env.GLM_MODEL ?? 'glm-5.2'
 // timestamps are offset before merging.
 const CHUNK_DURATION_SEC = Number(process.env.CHUNK_DURATION_SEC ?? 1800) // 30 min
 
-// Guardian: meetings shorter than this go straight to Deepgram in one call;
-// >= this are split into CHUNK_DURATION_SEC chunks. Defaults to 1 hour.
-const DIRECT_THRESHOLD_SEC = Number(process.env.DIRECT_THRESHOLD_SEC ?? 3600)
+// Guardian: meetings shorter than this go straight to Deepgram in ONE call;
+// >= this are split into CHUNK_DURATION_SEC chunks.
+//
+// IMPORTANT — diarization: Deepgram assigns speaker labels ("Speaker 0/1/2")
+// per call from scratch. When a meeting is chunked, the SAME physical person
+// can get different labels across chunks (the merge only offsets timestamps,
+// it cannot reconcile speaker identity from text alone). A single call keeps
+// diarization consistent, which is why this default is generous. The API
+// process allows long calls (server body/headers timeout is 180min in index.ts),
+// and typical uploads are compressed. Tune down via env only if you hit
+// Deepgram payload/timeout limits for very large files.
+const DIRECT_THRESHOLD_SEC = Number(process.env.DIRECT_THRESHOLD_SEC ?? 7200) // 2 hours
+
+// Max keyterm params sent per Deepgram request. Sending thousands of user
+// names would bloat the request URL and can hurt recognition accuracy.
+const MAX_KEYTERMS = Number(process.env.DEEPGRAM_MAX_KEYTERMS ?? 50)
+
+// Retry transient Deepgram failures (429 / 5xx / network) with backoff.
+const DEEPGRAM_MAX_RETRIES = Number(process.env.DEEPGRAM_MAX_RETRIES ?? 3)
 
 function dgKey(): string {
   const k = process.env.DEEPGRAM_API_KEY
   if (!k) throw new Error('DEEPGRAM_API_KEY is required')
   return k
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isTransientStatus(status: number): boolean {
+  return status === 429 || (status >= 500 && status <= 599)
 }
 
 function glmClient(): OpenAI {
@@ -628,6 +652,22 @@ async function getUserKeywords(): Promise<string[]> {
   }
 }
 
+// Merge env-configured keywords + DB user names, de-duped (case-insensitive)
+// and capped. Computed ONCE per job in transcribeAudio and passed into every
+// callDeepgram invocation (avoids re-querying the DB per chunk).
+function assembleKeyterms(userKws: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const kw of [...DEEPGRAM_KEYWORDS, ...userKws]) {
+    const k = kw.trim()
+    if (!k || seen.has(k.toLowerCase())) continue
+    seen.add(k.toLowerCase())
+    out.push(k)
+    if (out.length >= MAX_KEYTERMS) break
+  }
+  return out
+}
+
 interface DgApiResult {
   words: DgWord[]
   detectedLanguage: string | undefined
@@ -637,6 +677,7 @@ async function callDeepgram(
   buffer: Buffer,
   mimeType: string,
   language: Language,
+  keyterms: string[],
 ): Promise<DgApiResult> {
   const key = dgKey()
 
@@ -654,34 +695,55 @@ async function callDeepgram(
     params.set('language', language)
   }
 
-  const userKws = await getUserKeywords()
-  for (const kw of [...DEEPGRAM_KEYWORDS, ...userKws]) {
+  for (const kw of keyterms) {
     if (kw) params.append('keyterm', kw)
   }
 
-  const res = await fetch(`${DEEPGRAM_BASE}?${params}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Token ${key}`,
-      'Content-Type': mimeType,
-    },
-    body: buffer,
-  })
+  const url = `${DEEPGRAM_BASE}?${params}`
+  let lastErr: unknown = null
 
-  if (!res.ok) {
+  for (let attempt = 0; attempt <= DEEPGRAM_MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const backoff = Math.min(2000 * 2 ** (attempt - 1), 20000)
+      console.warn(`Deepgram retry attempt ${attempt + 1}/${DEEPGRAM_MAX_RETRIES + 1} in ${backoff}ms`)
+      await sleep(backoff)
+    }
+
+    let res: Response
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Token ${key}`,
+          'Content-Type': mimeType,
+        },
+        body: buffer,
+      })
+    } catch (err) {
+      // Network error — transient, retry if attempts remain.
+      lastErr = err
+      if (attempt === DEEPGRAM_MAX_RETRIES) break
+      continue
+    }
+
+    if (res.ok) {
+      const data = (await res.json()) as DgResponse
+      const channel = data.results?.channels?.[0]
+      const words = channel?.alternatives?.[0]?.words ?? []
+      const detectedLanguage = channel?.detected_language
+      console.log(`Deepgram returned ${words.length} words`)
+      if (words.length === 0) throw new Error('Deepgram returned empty transcript')
+      return { words, detectedLanguage }
+    }
+
     const text = await res.text().catch(() => '')
-    throw new Error(`Deepgram transcription failed (${res.status}): ${text}`)
+    lastErr = new Error(`Deepgram transcription failed (${res.status}): ${text}`)
+    if (!isTransientStatus(res.status) || attempt === DEEPGRAM_MAX_RETRIES) {
+      throw lastErr
+    }
   }
 
-  const data = (await res.json()) as DgResponse
-  const channel = data.results?.channels?.[0]
-  const words = channel?.alternatives?.[0]?.words ?? []
-  const detectedLanguage = channel?.detected_language
-  console.log(`Deepgram returned ${words.length} words`)
-
-  if (words.length === 0) throw new Error('Deepgram returned empty transcript')
-
-  return { words, detectedLanguage }
+  throw lastErr instanceof Error ? lastErr : new Error('Deepgram transcription failed after retries')
 }
 
 export async function transcribeAudio(args: {
@@ -699,8 +761,12 @@ export async function transcribeAudio(args: {
 }): Promise<TranscribeAudioResult> {
   args.onProgress?.('Transcribing audio...')
 
+  // Computed once per job (was previously re-queried inside callDeepgram on
+  // every chunk). Passed into each Deepgram request.
+  const keyterms = assembleKeyterms(await getUserKeywords())
+
   const transcribeWhole = async (durationSecOverride?: number): Promise<TranscribeAudioResult> => {
-    const { words, detectedLanguage } = await callDeepgram(args.buffer, args.mimeType, args.language)
+    const { words, detectedLanguage } = await callDeepgram(args.buffer, args.mimeType, args.language, keyterms)
     args.onProgress?.('Processing speaker labels...')
     const segments = wordsToSegments(words)
     const durationSec = durationSecOverride ?? Math.ceil(words[words.length - 1]?.end ?? 0)
@@ -748,7 +814,7 @@ export async function transcribeAudio(args: {
       console.log(`Chunk ${i + 1}/${chunkCount} (${start}s)`)
 
       const chunkBuffer = await extractAudioChunk(tmpFile, start, chunkDuration)
-      const result = await callDeepgram(chunkBuffer, 'audio/wav', args.language)
+      const result = await callDeepgram(chunkBuffer, 'audio/wav', args.language, keyterms)
 
       for (const w of result.words) {
         w.start += start
